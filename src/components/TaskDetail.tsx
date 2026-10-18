@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { STATUSES } from "../../shared/types";
 import { api, HttpError } from "../api";
 import { STATUS_LABEL } from "../format";
-import { addTask, archiveTask, childrenOf, restoreTask, updateTask, useStore } from "../store";
+import { addTask, archiveTask, childrenOf, restoreTask, updateTask, useStore, topPosition } from "../store";
 import { toast } from "../toast";
 import { Archive, Calendar, Check, Close, Plus, Sparkle } from "./icons";
 import { Sheet, SkeletonRows, stagger } from "./Sheet";
@@ -76,7 +76,7 @@ export function TaskDetail({ id, onClose }: { id: string | null; onClose: () => 
                 role="radio"
                 aria-checked={task.status === s}
                 className={`seg-item ${task.status === s ? "on" : ""}`}
-                onClick={() => task.status !== s && updateTask(task.id, { status: s, position: Date.now() + Math.random() })}
+                onClick={() => task.status !== s && updateTask(task.id, { status: s, position: topPosition() })}
               >
                 <span>{STATUS_LABEL[s]}</span>
               </button>

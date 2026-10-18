@@ -30,7 +30,7 @@ test("AI organize turns a rambling memo into tasks", async ({ app }) => {
   const sheet = app.getByTestId("organize-sheet");
   await expect(sheet.getByTestId("organize-item")).toHaveCount(2);
   await sheet.getByTestId("organize-commit").click();
-  await expect(cards(app)).toHaveCount(2);
+  await expect(cards(app).locator(".card-title")).toHaveText(["えーと牛乳を買う", "企画書を送る"]);
   await expect(app.getByTestId("toast")).toContainText("2 件追加しました");
 });
 

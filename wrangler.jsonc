@@ -16,7 +16,7 @@
     "AI_MODEL": "@cf/openai/gpt-oss-120b",
     "AI_MODEL_FAST": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
     "AI_DAILY_LIMIT": "50",
-    "GOOGLE_CLIENT_ID": ""
+    "GOOGLE_CLIENT_ID": "604726375896-ftniaheh3b6hhnd28ae408ulg2m9i1sr.apps.googleusercontent.com"
   },
   "observability": { "enabled": true }
 }

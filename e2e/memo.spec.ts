@@ -18,7 +18,8 @@ test("multi-line memo becomes one task per line", async ({ app }) => {
   await memo(app).fill("洗濯\n掃除\n買い物");
   await app.getByTestId("send").click();
   await expect(cards(app)).toHaveCount(3);
-  await expect(cards(app).first()).toContainText("洗濯");
+  // same order as written, even though all three were added in the same millisecond
+  await expect(cards(app).locator(".card-title")).toHaveText(["洗濯", "掃除", "買い物"]);
 });
 
 test("unsent draft survives a reload", async ({ app }) => {

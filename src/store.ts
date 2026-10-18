@@ -84,6 +84,13 @@ export const counts = (tasks: Record<string, Task>) =>
   Object.fromEntries(STATUSES.map((s) => [s, topLevel(tasks, s).length])) as Record<Status, number>;
 
 // ---------- mutations ----------
+/** A position above every task, so the newest action always lands on top in order. */
+export function topPosition() {
+  let max = Date.now();
+  for (const t of Object.values(state.tasks)) if (t.parentId === null && t.position >= max) max = t.position + 1;
+  return max;
+}
+
 function save(task: Task) {
   const prev = state.tasks[task.id];
   // updatedAt must strictly increase so the server's last-write-wins accepts it.
@@ -106,7 +113,7 @@ export function addTask(title: string, opts: { due?: string | null; parentId?: s
     parentId: opts.parentId ?? null,
     due: opts.due ?? null,
     // top-level: newest first; subtasks: in insertion order
-    position: opts.parentId ? (siblings.at(-1)?.position ?? 0) + 1 : now + Math.random(),
+    position: opts.parentId ? (siblings.at(-1)?.position ?? 0) + 1 : topPosition(),
     createdAt: now,
     updatedAt: now,
     archivedAt: null,
@@ -128,7 +135,7 @@ export function moveTask(id: string, dir: 1 | -1): "moved" | "archived" | null {
   }
   if (i >= STATUSES.length) return null;
   // Arrive at the top of the destination list.
-  save({ ...t, status: STATUSES[i], position: Date.now() + Math.random() });
+  save({ ...t, status: STATUSES[i], position: topPosition() });
   return "moved";
 }
 

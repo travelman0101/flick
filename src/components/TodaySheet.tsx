@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import type { TodayResult } from "../../shared/types";
 import { api, HttpError } from "../api";
-import { flush, updateTask, useStore } from "../store";
+import { flush, updateTask, useStore, topPosition } from "../store";
 import { Sheet, SkeletonRows, stagger } from "./Sheet";
 
 export function TodaySheet({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -58,7 +58,7 @@ export function TodaySheet({ open, onClose }: { open: boolean; onClose: () => vo
                     <motion.button
                       whileTap={{ scale: 0.94 }}
                       className="btn small"
-                      onClick={() => updateTask(p.id, { status: "doing", position: Date.now() + Math.random() })}
+                      onClick={() => updateTask(p.id, { status: "doing", position: topPosition() })}
                     >
                       始める
                     </motion.button>
