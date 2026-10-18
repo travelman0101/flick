@@ -539,9 +539,9 @@ html[data-auth="out"] .skeleton-screen::before {
 }
 .seg { display: grid; grid-template-columns: repeat(3, 1fr); padding: 4px; border-radius: 14px; background: rgba(20, 22, 28, 0.05); }
 .seg-item { position: relative; height: 36px; border-radius: 10px; font-weight: 600; font-size: 14px; color: var(--ink-2); }
-.seg-item.on { color: var(--ink); }
+.seg-item { transition: background 0.3s var(--spring), box-shadow 0.3s var(--spring), color 0.2s; }
+.seg-item.on { color: var(--ink); background: #fff; box-shadow: 0 2px 8px rgba(30, 40, 90, 0.1); }
 .seg-item span { position: relative; z-index: 1; }
-.seg-pill { position: absolute; inset: 0; border-radius: 10px; background: #fff; box-shadow: 0 2px 8px rgba(30, 40, 90, 0.1); }
 .field {
   display: flex;
   align-items: center;

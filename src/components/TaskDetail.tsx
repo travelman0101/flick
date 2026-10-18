@@ -78,7 +78,6 @@ export function TaskDetail({ id, onClose }: { id: string | null; onClose: () => 
                 className={`seg-item ${task.status === s ? "on" : ""}`}
                 onClick={() => task.status !== s && updateTask(task.id, { status: s, position: Date.now() + Math.random() })}
               >
-                {task.status === s && <motion.span layoutId="seg-pill" className="seg-pill" />}
                 <span>{STATUS_LABEL[s]}</span>
               </button>
             ))}
