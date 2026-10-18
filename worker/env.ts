@@ -4,7 +4,10 @@ export interface Env {
   DB: D1Database;
   AI: Ai;
   ASSETS: Fetcher;
+  /** accurate model: organize (relative dates) */
   AI_MODEL: string;
+  /** fast model: subtasks, today */
+  AI_MODEL_FAST: string;
   AI_DAILY_LIMIT: string;
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET?: string;

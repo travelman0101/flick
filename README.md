@@ -14,7 +14,7 @@
 | ホスティング | Cloudflare Workers + Static Assets | API と画面を 1 つの Worker で配信。エッジ配信で初回表示が速く、無料枠が大きい。デプロイが `wrangler deploy` 1 回で済む |
 | API | [Hono](https://hono.dev/) | Workers 向けに設計された軽量フレームワーク。型付きルーティングと `app.request()` によるテストのしやすさ |
 | DB | Cloudflare D1 | Workers から直接使える SQLite。タスク管理の規模には十分で、無料枠内で運用できる |
-| AI | Workers AI（既定: `@cf/meta/llama-3.3-70b-instruct-fp8-fast`） | Worker のバインディングから直接呼べて API キー管理が不要。JSON Schema 出力に対応。モデルは `AI_MODEL` で差し替え可能 |
+| AI | Workers AI（整理: `@cf/openai/gpt-oss-120b` / サブタスク・今日: `@cf/meta/llama-3.3-70b-instruct-fp8-fast`） | Worker のバインディングから直接呼べて API キー管理が不要。2026-10 に 7 モデルを実測し、相対日付（明日・来週月曜など）が正確だった gpt-oss-120b を整理に、約 1 秒と速い Llama 3.3 をその他に採用。日付計算はカレンダー表をプロンプトに渡して補助。モデルは `AI_MODEL` / `AI_MODEL_FAST` で差し替え可能 |
 | 認証 | Google OIDC（[Arctic](https://arcticjs.dev/)）+ D1 セッション | Google だけなら大型の認証ライブラリは不要。Authorization Code + PKCE + state、HttpOnly Cookie、セッショントークンは SHA-256 ハッシュのみ保存 |
 | 画面 | React 19 + Vite + TypeScript | 部品化しやすく、ビルドが速い。型で AI 生成コードのミスを減らす |
 | アニメーション | [Motion](https://motion.dev/) | フリックのドラッグ追従・速度判定・スプリング・レイアウトアニメーション・出入りアニメーションを 1 つでまかなえる |
