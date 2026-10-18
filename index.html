@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ja" data-auth="unknown">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="theme-color" content="#f7f8fb" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Flick" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <title>Flick</title>
+    <script>
+      // Runs before any CSS/JS loads: decide the first frame and keep memo input alive.
+      (function () {
+        var html = document.documentElement;
+        try {
+          if (localStorage.getItem("flick:v1:user")) html.dataset.auth = "in";
+        } catch (e) {}
+        // SVG refraction in backdrop-filter is Chromium-only; others get frosted glass.
+        if (/Chrome\//.test(navigator.userAgent)) html.classList.add("refract");
+      })();
+    </script>
+    <style>
+      /* Critical CSS so the shell paints correctly before the main stylesheet arrives. */
+      html { background: #f7f8fb; } html, body { margin: 0; color: #14161c; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Segoe UI", sans-serif; }
+      html[data-auth="out"] #composer, html[data-auth="unknown"] #composer { display: none; }
+      #composer { position: relative; margin: 0 16px; }
+      #memo { width: 100%; box-sizing: border-box; border: 0; outline: 0; resize: none; background: transparent; font: inherit; font-size: 17px; line-height: 1.5; }
+    </style>
+  </head>
+  <body>
+    <div class="aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <filter id="liquid" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.008 0.012" numOctaves="2" seed="7" result="noise" />
+        <feGaussianBlur in="noise" stdDeviation="2" result="soft" />
+        <feDisplacementMap in="SourceGraphic" in2="soft" scale="38" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    </svg>
+
+    <header class="topbar" id="topbar">
+      <span class="wordmark">Flick</span>
+      <div id="topbar-actions" class="topbar-actions"></div>
+    </header>
+
+    <form id="composer" class="glass refractive composer" autocomplete="off">
+      <textarea id="memo" name="memo" rows="1" placeholder="メモ" aria-label="メモ" enterkeyhint="send" autofocus></textarea>
+      <div id="composer-actions" class="composer-actions"></div>
+    </form>
+    <script>
+      // Restore the unsent draft and capture memos submitted before the app bundle has loaded.
+      (function () {
+        var memo = document.getElementById("memo");
+        var html = document.documentElement;
+        try {
+          memo.value = localStorage.getItem("flick:v1:draft") || "";
+        } catch (e) {}
+        memo.addEventListener("input", function () {
+          try {
+            localStorage.setItem("flick:v1:draft", memo.value);
+          } catch (e) {}
+        });
+        if (html.dataset.auth === "in") {
+          memo.focus({ preventScroll: true });
+          memo.setSelectionRange(memo.value.length, memo.value.length);
+        }
+        window.__flickBoot = function (e) {
+          if (e.key !== "Enter" || e.shiftKey || e.isComposing || e.keyCode === 229) return;
+          e.preventDefault();
+          var text = memo.value.trim();
+          if (!text) return;
+          try {
+            var q = JSON.parse(localStorage.getItem("flick:v1:boot") || "[]");
+            q.push({ text: text, at: Date.now() });
+            localStorage.setItem("flick:v1:boot", JSON.stringify(q));
+            localStorage.removeItem("flick:v1:draft");
+          } catch (err) {}
+          memo.value = "";
+        };
+        memo.addEventListener("keydown", window.__flickBoot);
+      })();
+    </script>
+
+    <div id="root">
+      <div class="skeleton-screen" aria-busy="true" aria-label="読み込み中">
+        <div class="sk sk-tabs"></div>
+        <div class="sk sk-card"></div>
+        <div class="sk sk-card"></div>
+        <div class="sk sk-card short"></div>
+        <div class="sk sk-card"></div>
+        <div class="sk sk-card short"></div>
+        <div class="sk sk-card"></div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
