@@ -1,0 +1,7 @@
+# Copy to .dev.vars for local development. Never commit .dev.vars.
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+# Test-only login at /api/auth/dev-login. Must never be set in production.
+DEV_AUTH=1
+# Return canned AI responses instead of calling Workers AI.
+AI_MOCK=1
