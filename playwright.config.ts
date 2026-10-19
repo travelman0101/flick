@@ -6,7 +6,8 @@ export default defineConfig({
   testDir: "e2e",
   timeout: 30_000,
   fullyParallel: true,
-  workers: 4,
+  // the local Workers runtime on Windows drops requests with more parallel browsers
+  workers: 2,
   reporter: [["list"]],
   use: {
     baseURL: `http://localhost:${PORT}`,

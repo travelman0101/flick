@@ -7,7 +7,8 @@ export const test = base.extend<{ app: Page }>({
     // dev-login keeps 40 chars: stay well under so every run gets a brand-new user
     const name = `e2e-${randomUUID().slice(0, 8)}-${Date.now().toString(36)}`;
     await page.goto(`/api/auth/dev-login?name=${name}`);
-    await expect(page.getByTestId("tab-todo")).toBeVisible();
+    // first load of a fresh user on the local runtime can be slow while browsers run in parallel
+    await expect(page.getByTestId("tab-todo")).toBeVisible({ timeout: 20_000 });
     await use(page);
   },
 });

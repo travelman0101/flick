@@ -42,7 +42,7 @@ export function NoteField({ taskId, note }: { taskId: string; note: string }) {
         rows={3}
         maxLength={10_000}
         placeholder="メモ"
-        aria-label="メモ"
+        aria-label="タスクのメモ"
         data-testid="note"
         onChange={(e) => {
           const v = e.target.value;

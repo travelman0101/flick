@@ -45,6 +45,13 @@ test("attach a photo and a file, view, then delete with two taps", async ({ app 
   await app.getByTestId("lightbox").click();
   await expect(app.getByTestId("lightbox")).toHaveCount(0);
 
+  // Esc closes the photo but keeps the sheet open
+  await img.click();
+  await expect(app.getByTestId("lightbox")).toBeVisible();
+  await app.keyboard.press("Escape");
+  await expect(app.getByTestId("lightbox")).toHaveCount(0);
+  await expect(sheet).toBeVisible();
+
   await sheet.getByRole("button", { name: "閉じる" }).click();
   await expect(card(app, "資料をまとめる").getByTestId("has-files")).toHaveText("2");
 

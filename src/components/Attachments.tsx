@@ -41,6 +41,18 @@ export function Attachments({ taskId }: { taskId: string }) {
     };
   }, [taskId]);
 
+  // Esc closes only the photo, not the sheet underneath
+  useEffect(() => {
+    if (!viewing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setViewing(null);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [viewing]);
+
   useEffect(() => {
     if (!armed) return;
     const t = setTimeout(() => setArmed(null), 3000);
