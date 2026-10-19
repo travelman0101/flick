@@ -152,6 +152,7 @@ ai.post("/subtasks", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const title = cleanTitle(body.title, 500);
   if (!title) return c.json({ error: "title required" }, 400);
+  const note = cleanTitle(body.note, 1500);
   if (c.env.AI_MOCK === "1") return c.json(mock.subtasks(title));
 
   const raw = await runJson(
@@ -160,9 +161,10 @@ ai.post("/subtasks", async (c) => {
 - 3〜6 個、実行する順番に並べる
 - 各項目はそのタスク固有の具体的な行動にする（「調べる」「確認する」だけの抽象的な項目は禁止）
 - 各項目は 25 文字以内の「〜する」形の日本語
+- メモがあれば、その内容（行き先・人数・条件など）を手順に反映する。メモに書かれた済みの作業は含めない
 出力は JSON オブジェクトのみ。キーと文字列は必ずダブルクォート。
 例: 入力「引っ越しの準備」→ {"subtasks":["不用品を捨てるリストを作る","段ボールを20箱用意する","電気・ガスの停止を申し込む","転出届を出す"]}`,
-    title,
+    note ? `タスク: ${title}\nメモ:\n${note}` : title,
   );
   if (!Array.isArray(raw?.subtasks)) throw new AiOutputError("shape");
   const subtasks = raw.subtasks.map((s: unknown) => cleanTitle(s)).filter(Boolean).slice(0, 6);

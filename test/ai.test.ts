@@ -48,6 +48,20 @@ describe("ai", () => {
     expect(((await res.json()) as any).subtasks).toHaveLength(6);
   });
 
+  it("subtasks passes the task note to the model", async () => {
+    const cookie = await login("ai8");
+    let seen = "";
+    const ai = {
+      run: async (_m: string, input: any) => {
+        seen = input.messages[1].content;
+        return { response: { subtasks: ["a"] } };
+      },
+    } as unknown as Ai;
+    await post("/api/ai/subtasks", { title: "旅行の準備", note: "台湾、3泊、雨季" }, cookie, ai);
+    expect(seen).toContain("旅行の準備");
+    expect(seen).toContain("台湾、3泊、雨季");
+  });
+
   it("today only returns ids of the user's open tasks", async () => {
     const cookie = await login("ai5");
     await call("/api/tasks/k1", { method: "PUT", cookie, body: JSON.stringify(task({ title: "A" })) });

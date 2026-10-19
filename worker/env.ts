@@ -3,6 +3,10 @@ import type { User } from "../shared/types";
 export interface Env {
   DB: D1Database;
   AI: Ai;
+  /** attachment bytes, key = attachment id */
+  FILES: KVNamespace;
+  FILE_MAX_BYTES: string;
+  USER_QUOTA_BYTES: string;
   ASSETS: Fetcher;
   /** accurate model: organize (relative dates) */
   AI_MODEL: string;

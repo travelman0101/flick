@@ -1,9 +1,11 @@
 import { expect, test as base, type Locator, type Page } from "@playwright/test";
+import { randomUUID } from "node:crypto";
 
 /** Each test gets its own fresh user via the local-only dev login. */
 export const test = base.extend<{ app: Page }>({
-  app: async ({ page }, use, info) => {
-    const name = `e2e-${info.testId}-${Date.now()}`.replace(/[^a-z0-9-]/gi, "");
+  app: async ({ page }, use) => {
+    // dev-login keeps 40 chars: stay well under so every run gets a brand-new user
+    const name = `e2e-${randomUUID().slice(0, 8)}-${Date.now().toString(36)}`;
     await page.goto(`/api/auth/dev-login?name=${name}`);
     await expect(page.getByTestId("tab-todo")).toBeVisible();
     await use(page);

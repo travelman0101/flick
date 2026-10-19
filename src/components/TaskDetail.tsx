@@ -5,7 +5,9 @@ import { api, HttpError } from "../api";
 import { STATUS_LABEL } from "../format";
 import { addTask, archiveTask, childrenOf, restoreTask, updateTask, useStore, topPosition } from "../store";
 import { toast } from "../toast";
+import { Attachments } from "./Attachments";
 import { Archive, Calendar, Check, Close, Plus, Sparkle } from "./icons";
+import { NoteField } from "./NoteField";
 import { Sheet, SkeletonRows, stagger } from "./Sheet";
 
 export function TaskDetail({ id, onClose }: { id: string | null; onClose: () => void }) {
@@ -38,7 +40,7 @@ export function TaskDetail({ id, onClose }: { id: string | null; onClose: () => 
     setThinking(true);
     setIdeas(null);
     try {
-      const r = await api.subtasks(task.title);
+      const r = await api.subtasks(task.title, task.note);
       const existing = new Set(subs.map((s) => s.title));
       setIdeas(r.subtasks.filter((s) => !existing.has(s)));
     } catch (e) {
@@ -97,6 +99,8 @@ export function TaskDetail({ id, onClose }: { id: string | null; onClose: () => 
               </button>
             )}
           </label>
+
+          <NoteField taskId={task.id} note={task.note} />
 
           <section className="subs">
             <div className="subs-head">
@@ -180,6 +184,8 @@ export function TaskDetail({ id, onClose }: { id: string | null; onClose: () => 
               <input value={newSub} onChange={(e) => setNewSub(e.target.value)} placeholder="サブタスク" aria-label="サブタスクを追加" />
             </form>
           </section>
+
+          <Attachments taskId={task.id} />
 
           <motion.button
             whileTap={{ scale: 0.97 }}

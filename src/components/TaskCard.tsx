@@ -2,7 +2,7 @@ import { animate, motion, useMotionValue, useTransform, type PanInfo } from "mot
 import { useRef, useState } from "react";
 import type { Task } from "../../shared/types";
 import { dueLabel, haptic, STATUS_LABEL } from "../format";
-import { Archive, ArrowLeft, ArrowRight, Check } from "./icons";
+import { Archive, ArrowLeft, ArrowRight, Check, NoteIcon, Paperclip } from "./icons";
 
 const THRESHOLD = 96;
 const VELOCITY = 650;
@@ -55,6 +55,8 @@ export function TaskCard({ task, subtasks, onOpen, onFlick }: Props) {
   }
 
   const due = task.due ? dueLabel(task.due) : null;
+  const hasNote = task.note.trim().length > 0;
+  const files = task.attachmentCount ?? 0;
 
   return (
     <div className="card-shell" data-testid="task" data-id={task.id} data-status={task.status}>
@@ -99,12 +101,23 @@ export function TaskCard({ task, subtasks, onOpen, onFlick }: Props) {
         <StatusDot status={task.status} />
         <div className="card-body">
           <div className={`card-title ${task.status === "done" ? "is-done" : ""}`}>{task.title}</div>
-          {(due || subtasks.total > 0) && (
+          {(due || subtasks.total > 0 || hasNote || files > 0) && (
             <div className="card-meta">
               {due && <span className={`chip due ${due.tone}`}>{due.text}</span>}
               {subtasks.total > 0 && (
                 <span className="chip">
                   {subtasks.done}/{subtasks.total}
+                </span>
+              )}
+              {hasNote && (
+                <span className="chip icon" aria-label="メモあり" data-testid="has-note">
+                  <NoteIcon width={13} height={13} />
+                </span>
+              )}
+              {files > 0 && (
+                <span className="chip icon" aria-label={`添付 ${files} 件`} data-testid="has-files">
+                  <Paperclip width={13} height={13} />
+                  {files}
                 </span>
               )}
             </div>

@@ -75,3 +75,20 @@ export const GoogleG = () => (
     <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.9 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.8 6.1C6.6 42.6 14.6 48 24 48z" />
   </svg>
 );
+export const Paperclip = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M21 11.5l-8.6 8.6a5 5 0 01-7.1-7.1l8.6-8.6a3.3 3.3 0 014.7 4.7l-8.6 8.6a1.7 1.7 0 01-2.4-2.4l7.9-7.9" />
+  </svg>
+);
+export const FileIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
+    <path d="M14 3v5h5M9 13h6M9 17h4" />
+  </svg>
+);
+export const NoteIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M5 4h14v11l-5 5H5z" />
+    <path d="M14 20v-5h5M8 9h8M8 13h5" />
+  </svg>
+);

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { ai } from "./ai";
 import { auth, requireUser } from "./auth";
 import type { AppEnv } from "./env";
+import { files, taskFiles } from "./files";
 import { tasks } from "./tasks";
 
 const app = new Hono<AppEnv>();
@@ -12,7 +13,7 @@ app.use("/api/*", async (c, next) => {
     if (c.req.header("origin") !== new URL(c.req.url).origin) return c.json({ error: "forbidden" }, 403);
   }
   await next();
-  c.header("Cache-Control", "no-store");
+  if (!c.res.headers.has("Cache-Control")) c.header("Cache-Control", "no-store");
 });
 
 app.route("/api/auth", auth);
@@ -21,6 +22,9 @@ app.get("/api/me", (c) => c.json({ user: c.get("user") }));
 app.use("/api/tasks/*", requireUser);
 app.use("/api/tasks", requireUser);
 app.route("/api/tasks", tasks);
+app.route("/api/tasks", taskFiles);
+app.use("/api/attachments/*", requireUser);
+app.route("/api/attachments", files);
 app.use("/api/ai/*", requireUser);
 app.route("/api/ai", ai);
 app.all("/api/*", (c) => c.json({ error: "not found" }, 404));

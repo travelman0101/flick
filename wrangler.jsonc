@@ -11,11 +11,14 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "flick", "database_id": "e72d6fa3-2757-4e6b-910b-75fbecec6dae", "migrations_dir": "migrations" }
   ],
+  "kv_namespaces": [{ "binding": "FILES", "id": "114d0dae05754625bb7e6ff84f64eb61" }],
   "ai": { "binding": "AI" },
   "vars": {
     "AI_MODEL": "@cf/openai/gpt-oss-120b",
     "AI_MODEL_FAST": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
     "AI_DAILY_LIMIT": "50",
+    "FILE_MAX_BYTES": "10485760",
+    "USER_QUOTA_BYTES": "104857600",
     "GOOGLE_CLIENT_ID": "604726375896-ftniaheh3b6hhnd28ae408ulg2m9i1sr.apps.googleusercontent.com"
   },
   "observability": { "enabled": true }

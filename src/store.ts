@@ -40,11 +40,18 @@ const write = (key: string, value: unknown) => {
   }
 };
 
+/** Tasks cached by older versions have no note. */
+const readTasks = (uid: string): Record<string, Task> => {
+  const tasks = read<Record<string, Task>>(K.tasks(uid), {});
+  for (const t of Object.values(tasks)) t.note ??= "";
+  return tasks;
+};
+
 const cachedUser = read<User | null>(K.user, null);
 let state: State = {
   auth: cachedUser ? "in" : "unknown",
   user: cachedUser,
-  tasks: cachedUser ? read(K.tasks(cachedUser.id), {}) : {},
+  tasks: cachedUser ? readTasks(cachedUser.id) : {},
   ready: cachedUser ? localStorage.getItem(K.tasks(cachedUser.id)) !== null : false,
 };
 let outbox: string[] = cachedUser ? read(K.outbox(cachedUser.id), []) : [];
@@ -109,6 +116,7 @@ export function addTask(title: string, opts: { due?: string | null; parentId?: s
   return save({
     id: crypto.randomUUID(),
     title: title.trim().slice(0, 500),
+    note: "",
     status: opts.status ?? "todo",
     parentId: opts.parentId ?? null,
     due: opts.due ?? null,
@@ -137,6 +145,14 @@ export function moveTask(id: string, dir: 1 | -1): "moved" | "archived" | null {
   // Arrive at the top of the destination list.
   save({ ...t, status: STATUSES[i], position: topPosition() });
   return "moved";
+}
+
+/** Attachment counts are server-owned: update locally without queueing a write. */
+export function setAttachmentCount(id: string, attachmentCount: number) {
+  const t = state.tasks[id];
+  if (!t) return;
+  set({ tasks: { ...state.tasks, [id]: { ...t, attachmentCount } } });
+  persist();
 }
 
 export function archiveTask(id: string) {
@@ -209,7 +225,7 @@ function signedIn(user: User) {
   const switched = state.user?.id !== user.id;
   if (switched) {
     outbox = read(K.outbox(user.id), []);
-    set({ user, auth: "in", tasks: read(K.tasks(user.id), {}), ready: localStorage.getItem(K.tasks(user.id)) !== null });
+    set({ user, auth: "in", tasks: readTasks(user.id), ready: localStorage.getItem(K.tasks(user.id)) !== null });
   } else set({ user, auth: "in" });
   write(K.user, user);
 }
