@@ -55,7 +55,7 @@ export function Attachments({ taskId }: { taskId: string }) {
 
   useEffect(() => {
     if (!armed) return;
-    const t = setTimeout(() => setArmed(null), 3000);
+    const t = setTimeout(() => setArmed(null), 5000);
     return () => clearTimeout(t);
   }, [armed]);
 

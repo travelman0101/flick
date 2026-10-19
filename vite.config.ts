@@ -28,6 +28,11 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Take over as soon as a new version is installed. Without this the update
+        // waits until every tab is closed, which an installed PWA almost never does.
+        // The open page keeps running; the next launch gets the new version.
+        skipWaiting: true,
+        clientsClaim: true,
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api\//],
         globPatterns: ["**/*.{js,css,html,svg,png,webmanifest}"],
