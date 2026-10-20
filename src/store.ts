@@ -48,6 +48,8 @@ const readTasks = (uid: string): Record<string, Task> => {
   for (const t of Object.values(tasks)) {
     t.note ??= "";
     t.today ??= null;
+    t.doneAt ??= null;
+    t.trashedAt ??= null;
   }
   return tasks;
 };
@@ -83,28 +85,60 @@ export function useStore<T>(select: (s: State) => T): T {
 export const getState = () => state;
 
 // ---------- selectors ----------
-const visible = (t: Task) => t.archivedAt === null;
+/** Not in the archive and not in the trash. */
+export const isLive = (t: Task) => t.archivedAt === null && t.trashedAt === null;
 export const topLevel = (tasks: Record<string, Task>, status: Status) =>
   Object.values(tasks)
-    .filter((t) => visible(t) && t.parentId === null && t.status === status)
+    .filter((t) => isLive(t) && t.parentId === null && t.status === status)
     .sort((a, b) => b.position - a.position);
 export const childrenOf = (tasks: Record<string, Task>, parentId: string) =>
   Object.values(tasks)
-    .filter((t) => visible(t) && t.parentId === parentId)
+    .filter((t) => isLive(t) && t.parentId === parentId)
     .sort((a, b) => a.position - b.position);
 export const counts = (tasks: Record<string, Task>) =>
   Object.fromEntries(STATUSES.map((s) => [s, topLevel(tasks, s).length])) as Record<Status, number>;
 
+/** Whole-task progress from subtasks. ratio is null when there are none. */
+export function progressOf(tasks: Record<string, Task>, id: string) {
+  const subs = childrenOf(tasks, id);
+  const done = subs.filter((s) => s.status === "done").length;
+  return { done, total: subs.length, ratio: subs.length ? done / subs.length : null };
+}
+
+/** Archive: kept done tasks, newest first. Their subtasks travel with them. */
+export const archivedList = (tasks: Record<string, Task>) =>
+  Object.values(tasks)
+    .filter((t) => t.parentId === null && t.archivedAt !== null && t.trashedAt === null)
+    .sort((a, b) => b.archivedAt! - a.archivedAt!);
+
+/** Trash: trashed tasks, plus subtasks deleted on their own (their parent is not in the trash). */
+export const trashList = (tasks: Record<string, Task>) =>
+  Object.values(tasks)
+    .filter((t) => t.trashedAt !== null && (t.parentId === null || !tasks[t.parentId] || tasks[t.parentId].trashedAt === null))
+    .sort((a, b) => b.trashedAt! - a.trashedAt!);
+
 // ---------- today ----------
-const open = (t: Task) => visible(t) && t.parentId === null;
+const open = (t: Task) => isLive(t) && t.parentId === null;
 /** Due today or overdue and not finished: always part of today. */
 export const isDueNow = (t: Task, day: string) => t.due !== null && t.due <= day && t.status !== "done";
 export const isPicked = (t: Task, day: string) => t.today === day;
+/** In today's list, either picked or due. */
+export const inToday = (t: Task, day: string) => isPicked(t, day) || isDueNow(t, day);
 
-/** Today's list: picked tasks plus anything due now. Unfinished first (newest on top), finished last. */
+/**
+ * Today's goal for a task: the subtasks marked for today. With none marked, the goal is the whole task.
+ * achieved does not need the whole task done, so a big task can be "done for today".
+ */
+export function goalOf(tasks: Record<string, Task>, t: Task, day: string) {
+  const goals = childrenOf(tasks, t.id).filter((s) => s.today === day);
+  const done = goals.filter((s) => s.status === "done").length;
+  return { done, total: goals.length, achieved: t.status === "done" || (goals.length > 0 && done === goals.length) };
+}
+
+/** Today's list: picked tasks plus anything due now. Unfinished first (newest on top), done for today last. */
 export function todayList(tasks: Record<string, Task>, day: string) {
-  const list = Object.values(tasks).filter((t) => open(t) && (isPicked(t, day) || isDueNow(t, day)));
-  const rank = (t: Task) => (t.status === "done" ? 1 : 0);
+  const list = Object.values(tasks).filter((t) => open(t) && inToday(t, day));
+  const rank = (t: Task) => (goalOf(tasks, t, day).achieved ? 1 : 0);
   return list.sort((a, b) => rank(a) - rank(b) || b.position - a.position);
 }
 
@@ -129,13 +163,22 @@ export function isPlanned(day: string) {
   return read<string | null>(K.planned(state.user.id), null) === day;
 }
 
-/** Commit the morning pick: chosen tasks become today's, the rest stay where they are. */
-export function startDay(ids: string[], day = logicalDay()) {
+/**
+ * Commit the morning pick: chosen tasks become today's, the rest stay where they are.
+ * goals: subtask ids that are today's goal (only under chosen tasks).
+ */
+export function startDay(ids: string[], day = logicalDay(), goals: string[] = []) {
   const chosen = new Set(ids);
+  const goal = new Set(goals);
   for (const t of Object.values(state.tasks)) {
     if (!open(t)) continue;
     if (chosen.has(t.id) && t.today !== day) save({ ...t, today: day });
     else if (!chosen.has(t.id) && t.today === day) save({ ...t, today: null });
+    const keep = chosen.has(t.id) || isDueNow(t, day);
+    for (const s of childrenOf(state.tasks, t.id)) {
+      const on = keep && goal.has(s.id);
+      if ((s.today === day) !== on) save({ ...s, today: on ? day : null });
+    }
   }
   if (state.user) write(K.planned(state.user.id), day);
   set({});
@@ -144,6 +187,28 @@ export function startDay(ids: string[], day = logicalDay()) {
 export function setToday(id: string, on: boolean, day = logicalDay()) {
   const t = state.tasks[id];
   if (t && (t.today === day) !== on) save({ ...t, today: on ? day : null });
+}
+
+/** Mark a subtask as today's goal, or not. */
+export function setGoal(subId: string, on: boolean, day = logicalDay()) {
+  setToday(subId, on, day);
+}
+
+/**
+ * Take a task (and its goals) out of today. Status and progress stay exactly as they are.
+ * Returns an undo that puts back today and the same goals.
+ */
+export function postpone(id: string, day = logicalDay()): () => void {
+  const t = state.tasks[id];
+  if (!t) return () => {};
+  const wasPicked = t.today === day;
+  const goals = childrenOf(state.tasks, id).filter((s) => s.today === day).map((s) => s.id);
+  setToday(id, false, day);
+  goals.forEach((g) => setToday(g, false, day));
+  return () => {
+    if (wasPicked) setToday(id, true, day);
+    goals.forEach((g) => setToday(g, true, day));
+  };
 }
 
 // ---------- mutations ----------
@@ -158,7 +223,9 @@ function save(task: Task) {
   const prev = state.tasks[task.id];
   // updatedAt must strictly increase so the server's last-write-wins accepts it.
   const updatedAt = Math.max(Date.now(), (prev?.updatedAt ?? 0) + 1);
-  const next = { ...task, updatedAt };
+  // doneAt follows the status: it starts the 7 days before a done task goes to the trash
+  const doneAt = task.status !== "done" ? null : (task.doneAt ?? updatedAt);
+  const next = { ...task, updatedAt, doneAt };
   set({ tasks: { ...state.tasks, [task.id]: next } });
   if (!outbox.includes(task.id)) outbox.push(task.id);
   persist();
@@ -185,6 +252,8 @@ export function addTask(
     createdAt: now,
     updatedAt: now,
     archivedAt: null,
+    doneAt: null,
+    trashedAt: null,
   });
 }
 
@@ -193,19 +262,42 @@ export function updateTask(id: string, patch: Partial<Omit<Task, "id">>) {
   if (t) save({ ...t, ...patch });
 }
 
-/** keepPlace: Today keeps cards where they are instead of lifting them to the top */
-export function moveTask(id: string, dir: 1 | -1, keepPlace = false): "moved" | "archived" | null {
+/**
+ * keepPlace: Today keeps cards where they are instead of lifting them to the top.
+ * Left of todo goes to the trash; right of done keeps it in the archive.
+ */
+export function moveTask(id: string, dir: 1 | -1, keepPlace = false): "moved" | "trashed" | "archived" | null {
   const t = state.tasks[id];
   if (!t) return null;
   const i = STATUSES.indexOf(t.status) + dir;
   if (i < 0) {
-    archiveTask(id);
+    trashTask(id);
+    return "trashed";
+  }
+  if (i >= STATUSES.length) {
+    archiveDone(id);
     return "archived";
   }
-  if (i >= STATUSES.length) return null;
   // Arrive at the top of the destination list.
   save({ ...t, status: STATUSES[i], position: keepPlace ? t.position : topPosition() });
   return "moved";
+}
+
+/**
+ * Tick a subtask. The first finished subtask means work has started, so a todo parent becomes doing
+ * (in place: Today keeps its order). Unticking never moves the parent back.
+ */
+export function toggleSub(subId: string): { started: boolean; allDone: boolean } {
+  const s = state.tasks[subId];
+  if (!s) return { started: false, allDone: false };
+  const done = s.status !== "done";
+  save({ ...s, status: done ? "done" : "todo" });
+  const parent = s.parentId ? state.tasks[s.parentId] : undefined;
+  if (!parent || !done) return { started: false, allDone: false };
+  const started = parent.status === "todo";
+  if (started) save({ ...parent, status: "doing" });
+  const { done: d, total } = progressOf(state.tasks, parent.id);
+  return { started, allDone: total > 0 && d === total && parent.status !== "done" };
 }
 
 /** Attachment counts are server-owned: update locally without queueing a write. */
@@ -216,22 +308,71 @@ export function setAttachmentCount(id: string, attachmentCount: number) {
   persist();
 }
 
-export function archiveTask(id: string) {
+/** To the trash, with its subtasks (same time, so they come back together). */
+export function trashTask(id: string) {
   const t = state.tasks[id];
   if (!t) return;
   const now = Date.now();
-  save({ ...t, archivedAt: now });
-  childrenOf(state.tasks, id).forEach((c) => save({ ...c, archivedAt: now }));
+  save({ ...t, trashedAt: now });
+  Object.values(state.tasks)
+    .filter((c) => c.parentId === id && c.trashedAt === null)
+    .forEach((c) => save({ ...c, trashedAt: now }));
 }
 
-export function restoreTask(id: string) {
+/** Back from the trash to where it was (the archive, or its list). A done task gets a fresh 7 days. */
+export function restoreFromTrash(id: string) {
   const t = state.tasks[id];
-  if (!t) return;
-  const at = t.archivedAt;
-  save({ ...t, archivedAt: null });
+  if (!t || t.trashedAt === null) return;
+  const at = t.trashedAt;
+  const fresh = t.status === "done" && t.archivedAt === null;
+  save({ ...t, trashedAt: null, ...(fresh ? { doneAt: Date.now() } : {}) });
   Object.values(state.tasks)
-    .filter((c) => c.parentId === id && c.archivedAt === at)
-    .forEach((c) => save({ ...c, archivedAt: null }));
+    .filter((c) => c.parentId === id && c.trashedAt === at)
+    .forEach((c) => save({ ...c, trashedAt: null }));
+}
+
+/** Keep a done task in the archive (never cleaned up automatically). */
+export function archiveDone(id: string) {
+  const t = state.tasks[id];
+  if (t) save({ ...t, archivedAt: Date.now() });
+}
+
+/** Undo for archiveDone. */
+export function unarchiveInPlace(id: string) {
+  const t = state.tasks[id];
+  if (t) save({ ...t, archivedAt: null });
+}
+
+/** From the archive back to doing. */
+export function unarchive(id: string) {
+  const t = state.tasks[id];
+  if (t) save({ ...t, archivedAt: null, status: "doing", position: topPosition() });
+}
+
+function forget(ids: Set<string>) {
+  const tasks = { ...state.tasks };
+  for (const t of Object.values(tasks)) if (ids.has(t.id) || (t.parentId && ids.has(t.parentId))) delete tasks[t.id];
+  outbox = outbox.filter((id) => tasks[id]);
+  set({ tasks });
+  persist();
+}
+
+/** Delete for good (from the trash only). */
+export async function purgeTask(id: string) {
+  await flush();
+  try {
+    await api.deleteTask(id);
+  } catch (e) {
+    // never reached the server (made offline and trashed): nothing to delete there
+    if (!(e instanceof HttpError && e.status === 404)) throw e;
+  }
+  forget(new Set([id]));
+}
+
+export async function emptyTrash() {
+  await flush();
+  await api.emptyTrash();
+  forget(new Set(trashList(state.tasks).map((t) => t.id)));
 }
 
 // ---------- sync ----------
@@ -256,7 +397,10 @@ export async function flush() {
     }
   } catch (e) {
     if (e instanceof HttpError && e.status === 401) signedOut();
-    else if (e instanceof HttpError && e.status >= 400 && e.status < 500) {
+    else if (e instanceof HttpError && e.status === 410) {
+      // deleted for good on another device: forget it here too
+      forget(new Set([outbox[0]]));
+    } else if (e instanceof HttpError && e.status >= 400 && e.status < 500) {
       // The server rejected this change permanently; drop it so the queue keeps moving.
       outbox.shift();
       persist();

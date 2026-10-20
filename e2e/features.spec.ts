@@ -34,7 +34,7 @@ test("AI organize turns a rambling memo into tasks", async ({ app }) => {
   await expect(app.getByTestId("toast")).toContainText("2 件追加しました");
 });
 
-test("task detail: edit status, AI subtasks, archive", async ({ app }) => {
+test("task detail: edit status, AI subtasks, trash", async ({ app }) => {
   await addMemo(app, "旅行の準備");
   await card(app, "旅行の準備").click();
   const sheet = app.getByTestId("detail-sheet");
@@ -53,7 +53,7 @@ test("task detail: edit status, AI subtasks, archive", async ({ app }) => {
   await expect(card(app, "旅行の準備")).toContainText("1/3");
 
   await card(app, "旅行の準備").click();
-  await app.getByTestId("detail-sheet").getByRole("button", { name: "アーカイブ" }).click();
+  await app.getByTestId("detail-sheet").getByRole("button", { name: "ゴミ箱に移動" }).click();
   await expect(card(app, "旅行の準備")).toHaveCount(0);
 });
 

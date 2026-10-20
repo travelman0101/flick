@@ -1,23 +1,32 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { STATUSES } from "../../shared/types";
 import { api, HttpError } from "../api";
 import { STATUS_LABEL } from "../format";
 import {
   addTask,
-  archiveTask,
+  archiveDone,
   childrenOf,
+  goalOf,
+  inToday,
   isDueNow,
+  isLive,
   isPicked,
-  restoreTask,
+  postpone,
+  progressOf,
+  restoreFromTrash,
+  setGoal,
   setToday,
+  toggleSub,
   topPosition,
+  trashTask,
+  unarchiveInPlace,
   updateTask,
   useStore,
 } from "../store";
 import { toast } from "../toast";
 import { Attachments } from "./Attachments";
-import { Archive, Calendar, Check, Close, Plus, Sparkle, Sun } from "./icons";
+import { Archive, ArrowLeft, Calendar, Check, Close, Plus, Sparkle, Sun, Trash } from "./icons";
 import { NoteField } from "./NoteField";
 import { Sheet, SkeletonRows, stagger } from "./Sheet";
 
@@ -39,6 +48,9 @@ export function TaskDetail({
   const [newSub, setNewSub] = useState("");
   const [ideas, setIdeas] = useState<string[] | null>(null);
   const [thinking, setThinking] = useState(false);
+  // iPhone: the tap that closes the date picker can land on the status buttons right above it
+  const dateTouched = useRef(0);
+  const statusLocked = () => Date.now() - dateTouched.current < 600;
 
   useEffect(() => {
     setTitle(task?.title ?? "");
@@ -48,8 +60,25 @@ export function TaskDetail({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const open = !!task && task.archivedAt === null;
+  const open = !!task && isLive(task);
   const subs = task ? childrenOf(tasks, task.id) : [];
+  const today = !!task && task.parentId === null && inToday(task, day);
+  const progress = task ? progressOf(tasks, task.id) : null;
+  const goal = task ? goalOf(tasks, task, day) : null;
+  const unfinished = subs.filter((s) => s.status !== "done").length;
+
+  const tick = (subId: string) => {
+    const parentId = task?.id;
+    const { started, allDone } = toggleSub(subId);
+    if (allDone && parentId)
+      toast("すべて完了。タスクも完了にする？", { label: "完了にする", run: () => updateTask(parentId, { status: "done", position: topPosition() }) });
+    else if (started) toast("進行中にしました");
+  };
+
+  const trash = (id: string) => {
+    trashTask(id);
+    toast("ゴミ箱に移動しました", { label: "元に戻す", run: () => restoreFromTrash(id) });
+  };
 
   const saveTitle = () => {
     const t = title.trim();
@@ -96,34 +125,63 @@ export function TaskDetail({
           {task.parentId === null && (
             <motion.button
               whileTap={{ scale: 0.97 }}
-              className={`today-toggle ${isPicked(task, day) || isDueNow(task, day) ? "on" : ""}`}
-              aria-pressed={isPicked(task, day) || isDueNow(task, day)}
+              className={`today-toggle ${isPicked(task, day) ? "postpone" : isDueNow(task, day) ? "on" : ""}`}
               disabled={isDueNow(task, day) && !isPicked(task, day)}
-              onClick={() => setToday(task.id, !isPicked(task, day), day)}
+              onClick={() => {
+                if (isPicked(task, day)) toast("延期しました", { label: "元に戻す", run: postpone(task.id, day) });
+                else setToday(task.id, true, day);
+              }}
               data-testid="today-toggle"
             >
-              <Sun width={18} height={18} />
+              {isPicked(task, day) ? <ArrowLeft width={18} height={18} /> : <Sun width={18} height={18} />}
               {isDueNow(task, day) && !isPicked(task, day)
                 ? "期限が今日までなので今日に入っています"
                 : isPicked(task, day)
-                  ? "今日やる"
+                  ? "明日以降に延期"
                   : "今日やるに追加"}
             </motion.button>
           )}
 
-          <div className="seg" role="radiogroup" aria-label="ステータス">
-            {STATUSES.map((s) => (
-              <button
-                key={s}
-                role="radio"
-                aria-checked={task.status === s}
-                className={`seg-item ${task.status === s ? "on" : ""}`}
-                onClick={() => task.status !== s && updateTask(task.id, { status: s, position: topPosition() })}
+          {task.status === "done" && task.parentId === null ? (
+            <div className="done-actions">
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                className="btn small ghost"
+                onClick={() => updateTask(task.id, { status: "doing", position: topPosition() })}
+                data-testid="to-doing"
               >
-                <span>{STATUS_LABEL[s]}</span>
-              </button>
-            ))}
-          </div>
+                <ArrowLeft width={16} height={16} />
+                進行中に戻す
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                className="btn small keep"
+                onClick={() => {
+                  archiveDone(task.id);
+                  onClose();
+                  toast("アーカイブに保存しました", { label: "元に戻す", run: () => unarchiveInPlace(task.id) });
+                }}
+                data-testid="to-archive"
+              >
+                <Archive width={16} height={16} />
+                アーカイブに保存
+              </motion.button>
+            </div>
+          ) : (
+            <div className="seg" role="radiogroup" aria-label="ステータス">
+              {STATUSES.map((s) => (
+                <button
+                  key={s}
+                  role="radio"
+                  aria-checked={task.status === s}
+                  className={`seg-item ${task.status === s ? "on" : ""}`}
+                  onClick={() => !statusLocked() && task.status !== s && updateTask(task.id, { status: s, position: topPosition() })}
+                >
+                  <span>{STATUS_LABEL[s]}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
           <label className="field">
             <Calendar />
@@ -131,7 +189,11 @@ export function TaskDetail({
               type="date"
               value={task.due ?? ""}
               aria-label="期限"
-              onChange={(e) => updateTask(task.id, { due: e.target.value || null })}
+              onChange={(e) => {
+                dateTouched.current = Date.now();
+                updateTask(task.id, { due: e.target.value || null });
+              }}
+              onBlur={() => (dateTouched.current = Date.now())}
             />
             {task.due && (
               <button className="icon-btn tiny" aria-label="期限を消す" onClick={() => updateTask(task.id, { due: null })}>
@@ -145,18 +207,35 @@ export function TaskDetail({
           <section className="subs">
             <div className="subs-head">
               <h3>サブタスク</h3>
+              {progress && progress.total > 0 && (
+                <span className="sub-count" data-testid="sub-progress">
+                  全体 {progress.done}/{progress.total}
+                </span>
+              )}
+              {today && goal && goal.total > 0 && (
+                <span className={`sub-count goal ${goal.achieved ? "achieved" : ""}`} data-testid="goal-progress">
+                  <Sun width={12} height={12} />
+                  今日 {goal.done}/{goal.total}
+                </span>
+              )}
               <motion.button whileTap={{ scale: 0.94 }} className="btn small ai" onClick={suggest} disabled={thinking} data-testid="suggest">
                 <Sparkle width={16} height={16} />
                 AI 提案
               </motion.button>
             </div>
+            {today && goal && goal.total === 0 && unfinished > 0 && (
+              <p className="goal-hint" data-testid="goal-hint">
+                <Sun width={13} height={13} />
+                今日やる分をタップ
+              </p>
+            )}
             <motion.ul className="sub-list" layout>
               <AnimatePresence initial={false}>
                 {subs.map((s) => (
                   <motion.li
                     key={s.id}
                     layout
-                    className={`sub ${s.status === "done" ? "done" : ""}`}
+                    className={`sub ${s.status === "done" ? "done" : ""} ${today && s.today === day ? "goal" : ""}`}
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
@@ -167,12 +246,24 @@ export function TaskDetail({
                       className="sub-check"
                       aria-pressed={s.status === "done"}
                       aria-label={s.status === "done" ? "未完了に戻す" : "完了にする"}
-                      onClick={() => updateTask(s.id, { status: s.status === "done" ? "todo" : "done" })}
+                      onClick={() => tick(s.id)}
                     >
                       {s.status === "done" && <Check width={13} height={13} />}
                     </motion.button>
                     <span className="sub-title">{s.title}</span>
-                    <button className="icon-btn tiny" aria-label="削除" onClick={() => archiveTask(s.id)}>
+                    {today && (
+                      <motion.button
+                        whileTap={{ scale: 0.8 }}
+                        className={`icon-btn tiny goal-toggle ${s.today === day ? "on" : ""}`}
+                        aria-pressed={s.today === day}
+                        aria-label={s.today === day ? "今日の目標から外す" : "今日の目標にする"}
+                        onClick={() => setGoal(s.id, s.today !== day, day)}
+                        data-testid="goal-toggle"
+                      >
+                        <Sun width={15} height={15} />
+                      </motion.button>
+                    )}
+                    <button className="icon-btn tiny" aria-label="削除" onClick={() => trash(s.id)}>
                       <Close width={14} height={14} />
                     </button>
                   </motion.li>
@@ -231,13 +322,13 @@ export function TaskDetail({
             whileTap={{ scale: 0.97 }}
             className="btn danger wide"
             onClick={() => {
-              archiveTask(task.id);
               onClose();
-              toast("アーカイブしました", { label: "元に戻す", run: () => restoreTask(task.id) });
+              trash(task.id);
             }}
+            data-testid="detail-trash"
           >
-            <Archive width={18} height={18} />
-            アーカイブ
+            <Trash width={18} height={18} />
+            ゴミ箱に移動
           </motion.button>
         </div>
       )}

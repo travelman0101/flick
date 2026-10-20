@@ -26,13 +26,13 @@ test("a short drag snaps back without changing status", async ({ app }) => {
   await expect(card(app, "ちょっとだけ")).toBeVisible();
 });
 
-test("flick left on a todo archives it and undo restores it", async ({ app }) => {
+test("flick left on a todo moves it to the trash and undo restores it", async ({ app }) => {
   await addMemo(app, "いらないタスク");
   await app.getByTestId("tab-todo").click();
   await flick(app, card(app, "いらないタスク"), -220);
   await expect(card(app, "いらないタスク")).toHaveCount(0);
   const toast = app.getByTestId("toast");
-  await expect(toast).toContainText("アーカイブしました");
+  await expect(toast).toContainText("ゴミ箱に移動しました");
   await toast.getByRole("button", { name: "元に戻す" }).click();
   await expect(card(app, "いらないタスク")).toBeVisible();
 });

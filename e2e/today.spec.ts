@@ -70,10 +70,10 @@ test("the first open of the day asks what to do today", async ({ app }) => {
   await expect(card(app, "牛乳を買う")).toBeVisible();
 });
 
-test("in Today, flicks change status in place and left removes from today", async ({ app }) => {
+test("in Today, flicks change status in place and left postpones", async ({ app }) => {
   await addMemo(app, "報告書を書く");
   await addMemo(app, "メールを返す");
-  await expect(app.getByTestId("today-progress")).toHaveText("0 / 2 完了");
+  await expect(app.getByTestId("today-progress")).toHaveText("0 / 2 達成");
 
   await flick(app, card(app, "報告書を書く"), 220);
   await expect(card(app, "報告書を書く")).toHaveAttribute("data-status", "doing");
@@ -81,14 +81,14 @@ test("in Today, flicks change status in place and left removes from today", asyn
   await expect(cards(app).locator(".card-title")).toHaveText(["メールを返す", "報告書を書く"]);
   await flick(app, card(app, "報告書を書く"), 220);
   await expect(card(app, "報告書を書く")).toHaveAttribute("data-status", "done");
-  await expect(app.getByTestId("today-progress")).toHaveText("1 / 2 完了");
+  await expect(app.getByTestId("today-progress")).toHaveText("1 / 2 達成");
   await expect(app.getByTestId("count-today")).toHaveText("1");
   // finished tasks sink to the bottom
   await expect(cards(app).last()).toContainText("報告書を書く");
 
   await flick(app, card(app, "メールを返す"), -220);
   await expect(card(app, "メールを返す")).toHaveCount(0);
-  await expect(app.getByTestId("toast")).toContainText("今日から外しました");
+  await expect(app.getByTestId("toast")).toContainText("延期しました");
   await app.getByTestId("toast").getByRole("button", { name: "元に戻す" }).click();
   await expect(card(app, "メールを返す")).toBeVisible();
 
@@ -106,7 +106,7 @@ test("add a task to today from its detail sheet", async ({ app }) => {
   const toggle = app.getByTestId("detail-sheet").getByTestId("today-toggle");
   await expect(toggle).toHaveText("今日やるに追加");
   await toggle.click();
-  await expect(toggle).toHaveText("今日やる");
+  await expect(toggle).toHaveText("明日以降に延期");
   await app.getByTestId("detail-sheet").getByRole("button", { name: "閉じる" }).click();
   await expect(card(app, "ジムに行く").getByTestId("picked-today")).toBeVisible();
   await app.getByTestId("tab-today").click();

@@ -3,9 +3,9 @@ import { useMemo, useState } from "react";
 import type { Task } from "../../shared/types";
 import { api, HttpError } from "../api";
 import { dueLabel, haptic } from "../format";
-import { flush, planCandidates, startDay, useStore } from "../store";
+import { childrenOf, flush, planCandidates, startDay, useStore } from "../store";
 import { toast } from "../toast";
-import { Check, Sparkle } from "./icons";
+import { Check, Sparkle, Sun } from "./icons";
 
 const WD = ["日", "月", "火", "水", "木", "金", "土"];
 const dayLabel = (day: string) => {
@@ -23,7 +23,21 @@ export function PlanScreen({ day, onDone }: { day: string; onDone: () => void })
   const [chosen, setChosen] = useState<Set<string>>(
     () => new Set([...groups.picked, ...groups.leftover].map((t) => t.id)),
   );
+  // today's goals: subtasks already marked for today stay marked
+  const [goals, setGoals] = useState<Set<string>>(
+    () => new Set(Object.values(tasks).filter((t) => t.parentId !== null && t.today === day).map((t) => t.id)),
+  );
   const [reasons, setReasons] = useState<Record<string, string>>({});
+  const openSubs = (id: string) => childrenOf(tasks, id).filter((x) => x.status !== "done");
+  const toggleGoal = (id: string) => {
+    haptic(6);
+    setGoals((g) => {
+      const n = new Set(g);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  };
   const [thinking, setThinking] = useState(false);
 
   const toggle = (id: string) => {
@@ -53,7 +67,7 @@ export function PlanScreen({ day, onDone }: { day: string; onDone: () => void })
 
   const total = chosen.size + groups.due.length;
   const start = () => {
-    startDay([...chosen], day);
+    startDay([...chosen], day, [...goals]);
     haptic(14);
     onDone();
   };
@@ -97,6 +111,33 @@ export function PlanScreen({ day, onDone }: { day: string; onDone: () => void })
                   {due && <span className={`chip due ${due.tone}`}>{due.text}</span>}
                   {t.status === "doing" && <span className="chip">進行中</span>}
                 </motion.button>
+                <AnimatePresence initial={false}>
+                  {on && openSubs(t.id).length > 0 && (
+                    <motion.ul
+                      className="plan-goals"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ type: "spring", stiffness: 420, damping: 36 }}
+                    >
+                      <li className="plan-goals-hint">今日やる分をタップ</li>
+                      {openSubs(t.id).map((sub) => (
+                        <li key={sub.id}>
+                          <motion.button
+                            whileTap={{ scale: 0.97 }}
+                            className={`plan-goal ${goals.has(sub.id) ? "on" : ""}`}
+                            aria-pressed={goals.has(sub.id)}
+                            onClick={() => toggleGoal(sub.id)}
+                            data-testid="plan-goal"
+                          >
+                            <Sun width={14} height={14} />
+                            {sub.title}
+                          </motion.button>
+                        </li>
+                      ))}
+                    </motion.ul>
+                  )}
+                </AnimatePresence>
               </motion.li>
             );
           })}

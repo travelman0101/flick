@@ -45,6 +45,17 @@ export const Archive = (p: SVGProps<SVGSVGElement>) => (
     <path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8M10 12h4" />
   </svg>
 );
+export const Trash = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 12.5h9l1-12.5M10 11v5M14 11v5" />
+  </svg>
+);
+export const Undo = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M9 14L4 9l5-5" />
+    <path d="M4 9h10a6 6 0 010 12h-3" />
+  </svg>
+);
 export const Close = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M6 6l12 12M18 6L6 18" />

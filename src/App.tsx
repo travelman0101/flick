@@ -3,7 +3,7 @@ import { type ComponentProps, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Task } from "../shared/types";
 import { Composer } from "./components/Composer";
-import { Sun } from "./components/icons";
+import { Archive, Sun, Trash } from "./components/icons";
 import { Login } from "./components/Login";
 import { OrganizeSheet } from "./components/OrganizeSheet";
 import { dayLabel, PlanScreen } from "./components/PlanScreen";
@@ -14,18 +14,23 @@ import { ToastView } from "./components/ToastView";
 import { logicalDay } from "./day";
 import { takeDriveReturn } from "./drivePicker";
 import { api } from "./api";
+import { ShelfSheet, type ShelfKind } from "./components/Shelf";
 import {
-  childrenOf,
+  archivedList,
   counts,
+  goalOf,
   isPicked,
   isPlanned,
   logout,
   moveTask,
   planCandidates,
-  restoreTask,
-  setToday,
+  postpone,
+  progressOf,
+  restoreFromTrash,
   todayList,
   topLevel,
+  trashList,
+  unarchiveInPlace,
   useStore,
 } from "./store";
 import { toast } from "./toast";
@@ -85,6 +90,7 @@ function Main() {
   const [organizing, setOrganizing] = useState<string | null>(null);
   const [replan, setReplan] = useState(false);
   const [driveReturn, setDriveReturn] = useState<string | null>(null);
+  const [shelf, setShelf] = useState<ShelfKind | null>(null);
   const firstPaint = useRef(true);
 
   // back from connecting Google Drive: reopen the task and its picker
@@ -117,13 +123,15 @@ function Main() {
   // The first open of the day asks what today is about, when there is something to choose from.
   const planning = view === "today" && (replan || (!isPlanned(day) && groups.leftover.length + groups.rest.length > 0));
   const list = view === "today" ? today : topLevel(tasks, view);
-  const c = { ...counts(tasks), today: today.filter((t) => t.status !== "done").length };
+  const achieved = today.filter((t) => goalOf(tasks, t, day).achieved).length;
+  const c = { ...counts(tasks), today: today.length - achieved };
 
   const onFlick = (id: string, d: 1 | -1): "leave" | "stay" => {
     const t = tasks[id];
     if (view !== "today") {
       const r = moveTask(id, d);
-      if (r === "archived") toast("アーカイブしました", { label: "元に戻す", run: () => restoreTask(id) });
+      if (r === "trashed") toast("ゴミ箱に移動しました", { label: "元に戻す", run: () => restoreFromTrash(id) });
+      if (r === "archived") toast("アーカイブに保存しました", { label: "元に戻す", run: () => unarchiveInPlace(id) });
       return "leave";
     }
     // In Today, status changes keep the card in the list.
@@ -135,8 +143,8 @@ function Main() {
       toast("期限が今日までのタスクです");
       return "stay";
     }
-    setToday(id, false, day);
-    toast("今日から外しました", { label: "元に戻す", run: () => setToday(id, true, day) });
+    // postpone: out of today, status and progress untouched
+    toast("延期しました", { label: "元に戻す", run: postpone(id, day) });
     return "leave";
   };
 
@@ -152,6 +160,7 @@ function Main() {
           setView("today");
           setReplan(true);
         }}
+        onShelf={setShelf}
       />
       <StatusTabs value={view} counts={c} onChange={setView} />
 
@@ -174,10 +183,10 @@ function Main() {
             transition={{ type: "spring", stiffness: 420, damping: 38 }}
             data-testid={`list-${view}`}
           >
-            {view === "today" && <TodayHeader day={day} list={today} onPlan={() => setReplan(true)} />}
+            {view === "today" && <TodayHeader day={day} total={today.length} achieved={achieved} onPlan={() => setReplan(true)} />}
             <AnimatePresence mode="popLayout" initial={true}>
               {list.map((t, i) => {
-                const subs = childrenOf(tasks, t.id);
+                const progress = progressOf(tasks, t.id);
                 return (
                   <motion.li
                     key={t.id}
@@ -190,10 +199,13 @@ function Main() {
                   >
                     <TaskCard
                       task={t}
-                      subtasks={{ total: subs.length, done: subs.filter((s) => s.status === "done").length }}
+                      subtasks={progress}
+                      progress={progress.ratio}
+                      goal={view === "today" ? goalOf(tasks, t, day) : undefined}
+                      allowArchive={view === "done"}
                       onOpen={setOpenId}
                       onFlick={onFlick}
-                      leftLabel={view === "today" ? "今日から外す" : undefined}
+                      leftLabel={view === "today" ? "延期" : undefined}
                       pickedToday={view !== "today" && isPicked(t, day)}
                     />
                   </motion.li>
@@ -226,6 +238,7 @@ function Main() {
           setDriveReturn(null);
         }}
       />
+      <ShelfSheet kind={shelf} onClose={() => setShelf(null)} />
       <OrganizeSheet text={organizing} today={view === "today" ? day : null} onClose={() => setOrganizing(null)} onAdded={addedTo} />
     </motion.main>
   );
@@ -237,21 +250,22 @@ function PresentList(props: ComponentProps<typeof motion.ul>) {
   return <motion.ul {...props} {...(present ? {} : { inert: true, "aria-hidden": true, "data-exiting": "" })} />;
 }
 
-function TodayHeader({ day, list, onPlan }: { day: string; list: Task[]; onPlan: () => void }) {
-  const done = list.filter((t) => t.status === "done").length;
-  const ratio = list.length ? done / list.length : 0;
+/** Today's progress counts goals met, not whole tasks finished: a big task can be done for today. */
+function TodayHeader({ day, total, achieved, onPlan }: { day: string; total: number; achieved: number; onPlan: () => void }) {
+  const ratio = total ? achieved / total : 0;
+  const all = total > 0 && achieved === total;
   return (
-    <motion.li className="today-head" layout data-testid="today-head">
+    <motion.li className={`today-head ${all ? "all" : ""}`} layout data-testid="today-head">
       <div className="today-head-row">
         <span className="today-date">{dayLabel(day)}</span>
         <span className="today-progress" data-testid="today-progress">
-          {done} / {list.length} 完了
+          {achieved} / {total} 達成
         </span>
       </div>
       <div className="today-bar">
         <motion.span initial={false} animate={{ width: `${ratio * 100}%` }} transition={{ type: "spring", stiffness: 200, damping: 26 }} />
       </div>
-      {list.length === 0 && (
+      {total === 0 && (
         <div className="today-empty">
           <span className="empty-orb" aria-hidden />
           <motion.button whileTap={{ scale: 0.96 }} className="btn small" onClick={onPlan} data-testid="plan-open">
@@ -263,8 +277,10 @@ function TodayHeader({ day, list, onPlan }: { day: string; list: Task[]; onPlan:
   );
 }
 
-function HeaderActions({ onPlan }: { onPlan: () => void }) {
+function HeaderActions({ onPlan, onShelf }: { onPlan: () => void; onShelf: (k: ShelfKind) => void }) {
   const user = useStore((s) => s.user);
+  const kept = useStore((s) => archivedList(s.tasks).length);
+  const trashed = useStore((s) => trashList(s.tasks).length);
   const [menu, setMenu] = useState(false);
   const slot = document.getElementById("topbar-actions");
   if (!slot || !user) return null;
@@ -304,6 +320,30 @@ function HeaderActions({ onPlan }: { onPlan: () => void }) {
               transition={{ type: "spring", stiffness: 500, damping: 32 }}
             >
               <div className="menu-email">{user.email}</div>
+              <button
+                className="menu-item"
+                data-testid="menu-archive"
+                onClick={() => {
+                  setMenu(false);
+                  onShelf("archive");
+                }}
+              >
+                <Archive width={16} height={16} />
+                アーカイブ
+                <span className="menu-count">{kept}</span>
+              </button>
+              <button
+                className="menu-item"
+                data-testid="menu-trash"
+                onClick={() => {
+                  setMenu(false);
+                  onShelf("trash");
+                }}
+              >
+                <Trash width={16} height={16} />
+                ゴミ箱
+                <span className="menu-count">{trashed}</span>
+              </button>
               <button
                 className="menu-item"
                 onClick={() => {

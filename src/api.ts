@@ -37,6 +37,8 @@ export const api = {
   driveToken: () => request<{ accessToken: string; apiKey: string; appId: string }>("/api/drive/token"),
   driveDisconnect: () => request("/api/drive/disconnect", { method: "POST" }),
   deleteAttachment: (id: string) => request(`/api/attachments/${id}`, { method: "DELETE" }),
+  deleteTask: (id: string) => request<{ deleted: number }>(`/api/tasks/${id}`, { method: "DELETE" }),
+  emptyTrash: () => request<{ deleted: number }>("/api/tasks/trash/empty", { method: "POST" }),
   today: () => request<TodayResult>("/api/ai/today", { method: "POST", body: JSON.stringify({ today: today() }) }),
 };
 
