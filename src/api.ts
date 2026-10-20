@@ -22,8 +22,9 @@ export const api = {
   tasks: () => request<{ tasks: Task[] }>("/api/tasks"),
   putTask: ({ id, ...t }: Task) => request<{ task: Task }>(`/api/tasks/${id}`, { method: "PUT", body: JSON.stringify(t) }),
   organize: (text: string) => request<OrganizeResult>("/api/ai/organize", { method: "POST", body: JSON.stringify({ text, today: today() }) }),
-  subtasks: (title: string, note = "") =>
-    request<SubtasksResult>("/api/ai/subtasks", { method: "POST", body: JSON.stringify({ title, note }) }),
+  subtasks: (title: string, note = "", taskId?: string) =>
+    request<SubtasksResult>("/api/ai/subtasks", { method: "POST", body: JSON.stringify({ title, note, taskId }) }),
+  tidy: (text: string) => request<{ markdown: string }>("/api/ai/tidy", { method: "POST", body: JSON.stringify({ text }) }),
   attachments: (taskId: string) => request<{ attachments: Attachment[] }>(`/api/tasks/${taskId}/attachments`),
   upload: (taskId: string, file: Blob, name: string) =>
     request<{ attachment: Attachment }>(`/api/tasks/${taskId}/attachments`, {

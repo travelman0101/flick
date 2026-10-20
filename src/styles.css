@@ -895,3 +895,50 @@ body:has(.login) { padding-bottom: 0; }
 .note-peek + .note-count { margin-left: 0; }
 .note-chevron { flex: none; font-size: 12px; color: var(--ink-3); display: inline-block; }
 .note.open .note-input { padding-top: 0; }
+
+/* ---------- note: formatted view + AI tidy ---------- */
+.md { font-size: 15px; line-height: 1.6; color: var(--ink); overflow-wrap: anywhere; }
+.md h4 { margin: 10px 0 4px; font-size: 14px; font-weight: 800; letter-spacing: 0.01em; }
+.md h4:first-child { margin-top: 0; }
+.md p { margin: 0 0 6px; }
+.md ul,
+.md ol { margin: 0 0 6px; padding-left: 20px; }
+.md li { margin: 2px 0; }
+.md li::marker { color: var(--ink-3); }
+.md li.d1 { margin-left: 16px; }
+.md li.d2 { margin-left: 32px; }
+.md strong { font-weight: 800; }
+.note-view {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 0 14px 12px;
+  cursor: text;
+  outline: 0;
+}
+.note-view:focus-visible { box-shadow: inset 0 0 0 2px rgba(47, 107, 255, 0.25); border-radius: 12px; }
+.note-tools { display: flex; justify-content: flex-end; padding: 0 10px 10px; }
+.btn.ghost { color: var(--ink-2); background: rgba(20, 22, 28, 0.05); }
+.btn.ai.busy { background: linear-gradient(90deg, rgba(122, 92, 255, 0.08), rgba(122, 92, 255, 0.2), rgba(122, 92, 255, 0.08)); background-size: 200% 100%; animation: shimmer 1.2s linear infinite; }
+.tidy-preview {
+  margin: 0 10px 10px;
+  padding: 12px 12px 10px;
+  border-radius: 14px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.95), rgba(243, 240, 255, 0.9));
+  border: 1px solid rgba(122, 92, 255, 0.18);
+  box-shadow: 0 8px 24px -12px rgba(122, 92, 255, 0.35), inset 0 1px 0 #fff;
+}
+.tidy-preview .md { max-height: 260px; overflow-y: auto; font-size: 14px; }
+.tidy-preview-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--accent-2);
+}
+.tidy-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+@media (prefers-reduced-motion: reduce) {
+  .btn.ai.busy { animation: none; }
+}
+.md hr { border: 0; height: 1px; margin: 10px 0; background: rgba(20, 22, 28, 0.08); }

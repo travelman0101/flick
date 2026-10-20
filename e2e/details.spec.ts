@@ -24,7 +24,46 @@ test("a note is saved as you type and survives a reload", async ({ app }) => {
   await expect(app.getByTestId("detail-sheet").getByTestId("note")).toHaveCount(0);
   await expect(app.getByTestId("detail-sheet").getByTestId("note-peek")).toHaveText("集合 7:00 中部国際空港");
   await app.getByTestId("detail-sheet").getByTestId("note-toggle").click();
+  // opens as a formatted read view; tap to edit
+  await app.getByTestId("detail-sheet").getByTestId("note-view").click();
   await expect(app.getByTestId("detail-sheet").getByTestId("note")).toHaveValue("集合 7:00 中部国際空港\nパスポート忘れない");
+});
+
+test("AI tidies a dictated note: preview first, replace, then undo", async ({ app }) => {
+  await addMemo(app, "合宿の連絡");
+  await card(app, "合宿の連絡").click();
+  const sheet = app.getByTestId("detail-sheet");
+  await sheet.getByTestId("note-toggle").click();
+  const raw = "えーと集合は7時。パスポートを忘れない";
+  await sheet.getByTestId("note").fill(raw);
+  const savedNote = async () =>
+    (await (await app.request.get("/api/tasks")).json()).tasks.find((t: { title: string }) => t.title === "合宿の連絡")?.note;
+
+  await sheet.getByTestId("tidy").click();
+  const preview = sheet.getByTestId("tidy-preview");
+  await expect(preview.getByRole("heading", { name: "整理したメモ" })).toBeVisible();
+  // nothing changes until confirmed
+  await expect(sheet.getByTestId("note")).toHaveValue(raw);
+
+  // cancelling keeps the original
+  await preview.getByTestId("tidy-cancel").click();
+  await expect(preview).toHaveCount(0);
+  await expect(sheet.getByTestId("note")).toHaveValue(raw);
+
+  await sheet.getByTestId("tidy").click();
+  await sheet.getByTestId("tidy-apply").click();
+  const view = sheet.getByTestId("note-view");
+  await expect(view.getByRole("heading", { name: "整理したメモ" })).toBeVisible();
+  await expect(view.getByRole("listitem")).toHaveText(["えーと集合は7時", "パスポートを忘れない"]);
+  await expect.poll(savedNote).toContain("## 整理したメモ");
+
+  // folded peek shows plain text, not Markdown symbols
+  await sheet.getByTestId("note-toggle").click();
+  await expect(sheet.getByTestId("note-peek")).toHaveText("整理したメモ");
+
+  await app.getByTestId("toast").getByRole("button", { name: "元に戻す" }).click();
+  await expect(sheet.getByTestId("note-peek")).toHaveText(raw);
+  await expect.poll(savedNote).toBe(raw);
 });
 
 test("attach a photo and a file, view, then delete with two taps", async ({ app }) => {

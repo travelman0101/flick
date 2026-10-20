@@ -29,6 +29,8 @@ export interface Attachment {
   type: string;
   size: number;
   createdAt: number;
+  /** short AI summary made when attached; null until ready or when unreadable */
+  summary: string | null;
 }
 
 export interface User {

@@ -73,6 +73,18 @@ drive.get("/callback", async (c) => {
 });
 
 /** A short-lived access token for the picker, plus the public picker settings. */
+/** A fresh Drive access token for the user, or null when Drive is not connected/usable. Server-side use. */
+export async function driveAccessToken(c: Context<AppEnv>): Promise<string | null> {
+  const row = await c.env.DB.prepare("SELECT refresh_enc FROM drive_tokens WHERE user_id = ?").bind(c.get("user").id).first<{ refresh_enc: string }>();
+  const g = client(c);
+  if (!row || !g) return null;
+  try {
+    return (await g.refreshAccessToken(await open(row.refresh_enc, c.env.DRIVE_TOKEN_KEY!))).accessToken();
+  } catch {
+    return null;
+  }
+}
+
 drive.get("/token", async (c) => {
   const row = await c.env.DB.prepare("SELECT refresh_enc FROM drive_tokens WHERE user_id = ?").bind(c.get("user").id).first<{ refresh_enc: string }>();
   if (!row) return c.json({ error: "not connected" }, 409);

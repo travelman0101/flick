@@ -55,6 +55,34 @@ async function runJson(c: Context<AppEnv>, system: string, user: string, accurat
   }
 }
 
+/** Plain text out of whatever shape the model returned (code fences stripped). */
+export function textOf(output: unknown): string {
+  const o = output as any;
+  const t = o?.response ?? o?.choices?.[0]?.message?.content ?? o?.output_text ?? "";
+  if (typeof t !== "string") throw new AiOutputError("empty");
+  return t
+    .trim()
+    .replace(/^```[a-z]*\n?/i, "")
+    .replace(/\n?```$/, "")
+    .trim();
+}
+
+/** A free-text answer (not JSON). Used for tidying notes and summarizing attachments. */
+export async function runText(env: AppEnv["Bindings"], model: string, system: string, user: string, maxTokens: number) {
+  const out = await env.AI.run(model as any, {
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+    max_tokens: maxTokens,
+    temperature: 0.2,
+    ...(model.includes("gpt-oss") ? { reasoning_effort: "low" } : {}),
+  } as any);
+  const text = textOf(out);
+  if (!text) throw new AiOutputError("empty");
+  return text;
+}
+
 const cleanTitle = (v: unknown, max = 120) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
 async function underLimit(c: Context<AppEnv>) {
@@ -102,6 +130,14 @@ const mock = {
       .slice(0, 10)
       .map((title) => ({ title, due: null })),
   }),
+  tidy: (text: string) =>
+    "## 整理したメモ\n" +
+    text
+      .split(/\n|。/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => `- ${s}`)
+      .join("\n"),
   subtasks: (title: string): SubtasksResult => ({
     subtasks: [`${title}の段取りを書き出す`, "必要なものをそろえる", "最初の 15 分だけ手をつける"],
   }),
@@ -148,11 +184,43 @@ ai.post("/organize", async (c) => {
   return c.json({ tasks } satisfies OrganizeResult);
 });
 
+/** Up to 5 attachments of the task as "- name: summary" (just the name when there is no summary yet). */
+async function attachmentContext(c: Context<AppEnv>, taskId: string) {
+  const { results } = await c.env.DB.prepare(
+    "SELECT name, summary FROM attachments WHERE task_id = ? AND user_id = ? ORDER BY created_at LIMIT 5",
+  )
+    .bind(taskId, c.get("user").id)
+    .all<{ name: string; summary: string | null }>();
+  return results.map((a) => (a.summary ? `- ${a.name}: ${a.summary.slice(0, 400)}` : `- ${a.name}`)).join("\n");
+}
+
+/** Tidy a dictated note into Markdown: headings and bullets, fillers removed, facts kept. */
+ai.post("/tidy", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const text = typeof body.text === "string" ? body.text.trim().slice(0, 6000) : "";
+  if (!text) return c.json({ error: "text required" }, 400);
+  if (c.env.AI_MOCK === "1") return c.json({ markdown: mock.tidy(text) });
+  const markdown = await runText(
+    c.env,
+    c.env.AI_MODEL,
+    `あなたは日本語のメモを清書するアシスタントです。入力は音声入力のメモで、話し言葉や誤変換を含みます。
+- 「えーと」「あの」などの話し言葉を取り除き、誤変換を文脈から直す（例: 「ボイスカード」→「ボーイスカウト」）
+- 内容をテーマごとにまとめ、Markdown で整理する。使ってよいのは「## 見出し」「- 箇条書き」「1. 番号付き」「**強調**」だけ
+- 書かれている事実（日時・場所・数・名前）はすべて残す。新しい情報を足さない。意見や推測を書かない
+- 清書したメモだけを出力する（前置きや説明は不要）`,
+    text,
+    2048,
+  );
+  // models like to end with a stray "---" rule
+  return c.json({ markdown: markdown.replace(/(\n\s*(-{3,}|\*{3,}|_{3,})\s*)+$/, "").trim().slice(0, 10_000) });
+});
+
 ai.post("/subtasks", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const title = cleanTitle(body.title, 500);
   if (!title) return c.json({ error: "title required" }, 400);
   const note = cleanTitle(body.note, 1500);
+  const files = typeof body.taskId === "string" ? await attachmentContext(c, body.taskId) : "";
   if (c.env.AI_MOCK === "1") return c.json(mock.subtasks(title));
 
   const raw = await runJson(
@@ -161,10 +229,10 @@ ai.post("/subtasks", async (c) => {
 - 3〜6 個、実行する順番に並べる
 - 各項目はそのタスク固有の具体的な行動にする（「調べる」「確認する」だけの抽象的な項目は禁止）
 - 各項目は 25 文字以内の「〜する」形の日本語
-- メモがあれば、その内容（行き先・人数・条件など）を手順に反映する。メモに書かれた済みの作業は含めない
+- メモや添付ファイルの要約があれば、その内容（行き先・人数・条件・締切など）を手順に反映する。済みと書かれた作業は含めない
 出力は JSON オブジェクトのみ。キーと文字列は必ずダブルクォート。
 例: 入力「引っ越しの準備」→ {"subtasks":["不用品を捨てるリストを作る","段ボールを20箱用意する","電気・ガスの停止を申し込む","転出届を出す"]}`,
-    note ? `タスク: ${title}\nメモ:\n${note}` : title,
+    [`タスク: ${title}`, note && `メモ:\n${note}`, files && `添付ファイル:\n${files}`].filter(Boolean).join("\n"),
   );
   if (!Array.isArray(raw?.subtasks)) throw new AiOutputError("shape");
   const subtasks = raw.subtasks.map((s: unknown) => cleanTitle(s)).filter(Boolean).slice(0, 6);

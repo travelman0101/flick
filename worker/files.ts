@@ -1,7 +1,22 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import type { Attachment } from "../shared/types";
 import type { AppEnv } from "./env";
+import { driveAccessToken } from "./drive";
+import { driveText, extractText, summarize } from "./summarize";
 import { ID, ownedTask } from "./tasks";
+
+/** Run after the response when the runtime allows it (production); inline otherwise (tests). */
+async function later(c: Context<AppEnv>, job: () => Promise<void>) {
+  const run = job().catch((e) => console.error("background job failed", e));
+  try {
+    c.executionCtx.waitUntil(run);
+  } catch {
+    await run;
+  }
+}
+
+const saveSummary = (db: D1Database, id: string, summary: string | null) =>
+  summary ? db.prepare("UPDATE attachments SET summary = ? WHERE id = ?").bind(summary, id).run() : null;
 
 interface Row {
   id: string;
@@ -12,6 +27,7 @@ interface Row {
   type: string;
   size: number;
   created_at: number;
+  summary: string | null;
 }
 
 const toAttachment = (r: Row): Attachment => ({
@@ -23,6 +39,7 @@ const toAttachment = (r: Row): Attachment => ({
   type: r.type,
   size: r.size,
   createdAt: r.created_at,
+  summary: r.summary,
 });
 
 /** Types the browser may render inline. Everything else is downloaded in a sandbox. */
@@ -83,6 +100,7 @@ taskFiles.post("/:id/attachments", async (c) => {
     type: TYPE.test(rawType) ? rawType : "application/octet-stream",
     size: body.byteLength,
     createdAt: Date.now(),
+    summary: null,
   };
   // Bytes first: a row without bytes would be a broken attachment.
   await c.env.FILES.put(att.id, body);
@@ -91,6 +109,11 @@ taskFiles.post("/:id/attachments", async (c) => {
   )
     .bind(att.id, userId, att.taskId, att.name, att.type, att.size, att.createdAt)
     .run();
+  // read it once now; subtask ideas use the summary later
+  await later(c, async () => {
+    const text = c.env.AI_MOCK === "1" ? att.name : await extractText(c.env, att.name, att.type, body);
+    await saveSummary(c.env.DB, att.id, text ? await summarize(c.env, att.name, text) : null);
+  });
   return c.json({ attachment: att });
 });
 
@@ -122,12 +145,21 @@ taskFiles.post("/:id/links", async (c) => {
     type: TYPE.test(rawType) ? rawType : "application/octet-stream",
     size: 0,
     createdAt: Date.now(),
+    summary: null,
   };
   await c.env.DB.prepare(
     "INSERT INTO attachments (id, user_id, task_id, name, type, size, created_at, kind, url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
   )
     .bind(att.id, userId, att.taskId, att.name, att.type, att.size, att.createdAt, att.kind, att.url)
     .run();
+  await later(c, async () => {
+    let text: string | null = att.name;
+    if (c.env.AI_MOCK !== "1") {
+      const token = await driveAccessToken(c);
+      text = token ? await driveText(token, url, att.type, att.name, c.env) : null;
+    }
+    await saveSummary(c.env.DB, att.id, text ? await summarize(c.env, att.name, text) : null);
+  });
   return c.json({ attachment: att });
 });
 

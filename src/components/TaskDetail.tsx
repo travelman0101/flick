@@ -62,7 +62,7 @@ export function TaskDetail({
     setThinking(true);
     setIdeas(null);
     try {
-      const r = await api.subtasks(task.title, task.note);
+      const r = await api.subtasks(task.title, task.note, task.id);
       const existing = new Set(subs.map((s) => s.title));
       setIdeas(r.subtasks.filter((s) => !existing.has(s)));
     } catch (e) {
