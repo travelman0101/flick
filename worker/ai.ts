@@ -243,7 +243,7 @@ ai.post("/today", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const { results } = await c.env.DB.prepare(
     `SELECT id, title, status, due FROM tasks
-     WHERE user_id = ? AND archived_at IS NULL AND status != 'done' AND parent_id IS NULL
+     WHERE user_id = ? AND archived_at IS NULL AND trashed_at IS NULL AND status != 'done' AND parent_id IS NULL
      ORDER BY position DESC LIMIT 60`,
   )
     .bind(c.get("user").id)

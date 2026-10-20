@@ -14,7 +14,12 @@ export interface Task {
   position: number; // larger = higher in the list
   createdAt: number;
   updatedAt: number;
+  /** kept in the archive (done tasks the user chose to keep) */
   archivedAt: number | null;
+  /** when the task became done; null while not done. Done tasks go to the trash 7 days later unless archived */
+  doneAt: number | null;
+  /** in the trash since; purged 30 days later */
+  trashedAt: number | null;
   /** server-computed, read-only */
   attachmentCount?: number;
 }

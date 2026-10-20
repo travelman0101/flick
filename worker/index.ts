@@ -1,12 +1,13 @@
 import { Hono } from "hono";
 import { ai } from "./ai";
 import { auth, requireUser } from "./auth";
-import type { AppEnv } from "./env";
+import type { AppEnv, Env } from "./env";
+import { sweep } from "./lifecycle";
 import { drive } from "./drive";
 import { files, taskFiles } from "./files";
 import { tasks } from "./tasks";
 
-const app = new Hono<AppEnv>();
+export const app = new Hono<AppEnv>();
 
 app.use("/api/*", async (c, next) => {
   // CSRF: state-changing requests must come from our own origin.
@@ -32,4 +33,10 @@ app.use("/api/ai/*", requireUser);
 app.route("/api/ai", ai);
 app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
 
-export default app;
+export default {
+  fetch: app.fetch,
+  // daily at 04:00 JST: done tasks older than 7 days to the trash, trash older than 30 days purged
+  scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(sweep(env));
+  },
+} satisfies ExportedHandler<Env>;

@@ -22,11 +22,12 @@ describe("tasks", () => {
     expect(((await stale.json()) as any).task.status).toBe("doing");
   });
 
-  it("hides archived tasks from the list", async () => {
+  it("lists archived tasks with archivedAt set (the client shows them in the archive)", async () => {
     const cookie = await login("t3");
+    const at = Date.now();
     await put("c1", task(), cookie);
-    await put("c1", task({ archivedAt: Date.now(), updatedAt: Date.now() + 1 }), cookie);
-    expect(await list(cookie)).toHaveLength(0);
+    await put("c1", task({ status: "done", archivedAt: at, updatedAt: at + 1 }), cookie);
+    expect(await list(cookie)).toMatchObject([{ id: "c1", archivedAt: at }]);
   });
 
   it("isolates users from each other", async () => {

@@ -23,5 +23,6 @@
     "GOOGLE_API_KEY": "AIzaSyC6XyKLnwQnKIEngYeyGR22JBVlCxMZkD8",
     "GOOGLE_CLIENT_ID": "604726375896-ftniaheh3b6hhnd28ae408ulg2m9i1sr.apps.googleusercontent.com"
   },
+  "triggers": { "crons": ["0 19 * * *"] },
   "observability": { "enabled": true }
 }
