@@ -995,8 +995,8 @@ body:has(.login) { padding-bottom: 0; }
 .sub-count.goal { color: #b86400; background: rgba(255, 159, 28, 0.13); margin-left: 4px; }
 .sub-count.goal.achieved { color: #0e8a5f; background: rgba(25, 179, 125, 0.13); }
 .goal-hint { display: flex; align-items: center; gap: 5px; margin: 0 4px 6px; font-size: 12px; font-weight: 700; color: #b86400; }
-.sub { border-radius: 10px; transition: background 0.25s; }
-.sub.goal { background: linear-gradient(90deg, rgba(255, 159, 28, 0.13), rgba(255, 159, 28, 0.02)); box-shadow: inset 3px 0 0 var(--doing); padding-left: 8px; }
+.sub { border-radius: 10px; padding: 6px 6px 6px 10px; transition: background 0.25s; }
+.sub.goal { background: linear-gradient(90deg, rgba(255, 159, 28, 0.13), rgba(255, 159, 28, 0.02)); box-shadow: inset 3px 0 0 var(--doing); }
 .goal-toggle { color: var(--ink-3); opacity: 0.55; transition: color 0.2s, opacity 0.2s; }
 .goal-toggle.on { color: var(--doing); opacity: 1; }
 .today-toggle.postpone { color: var(--ink-2); background: rgba(20, 22, 28, 0.05); border: 1px dashed rgba(20, 22, 28, 0.16); }
@@ -1022,3 +1022,4 @@ body:has(.login) { padding-bottom: 0; }
 .plan-goal svg { color: var(--ink-3); flex: none; transition: color 0.25s; }
 .plan-goal.on { color: var(--ink); background: rgba(255, 159, 28, 0.12); border-color: rgba(255, 159, 28, 0.35); }
 .plan-goal.on svg { color: var(--doing); }
+.menu-item:not(:has(svg)) { padding-left: 34px; }
