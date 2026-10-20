@@ -145,3 +145,12 @@ test("タスク tab: 追加順 by default, search and sort work, and the choice 
   await expect(list.getByTestId("sort-button")).toContainText("おすすめ順");
   await expect(list.getByTestId("search")).toHaveValue("");
 });
+
+test("leaving the morning pick for タスク shows the list right away, not below the fading screen", async ({ app }) => {
+  await seed(app, ORDER_SEED);
+  await expect(app.getByTestId("plan")).toBeVisible();
+  await app.getByTestId("tab-todo").click();
+  // the old bug kept the pick in the flow for about a second and pushed the list off screen
+  await expect(card(app, "期限なし")).toBeInViewport({ timeout: 500 });
+  await expect(app.getByTestId("plan")).toHaveCount(0);
+});

@@ -1,5 +1,5 @@
-import { AnimatePresence, motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { AnimatePresence, motion, useIsPresent } from "motion/react";
+import { useMemo, useState, type Ref } from "react";
 import { api, HttpError } from "../api";
 import { dueLabel, haptic } from "../format";
 import { matches, sortTasks } from "../sort";
@@ -20,8 +20,11 @@ const dayLabel = (day: string) => {
  * Search and sort only change what is shown; choices stay. Tasks due today are always
  * in today's list, so they show as chosen and locked ("自動").
  */
-export function PlanScreen({ day, onDone }: { day: string; onDone: () => void }) {
+// ref: AnimatePresence (popLayout) lifts the screen out of the flow while it leaves, so the next list is not pushed down
+export function PlanScreen({ day, onDone, ref }: { day: string; onDone: () => void; ref?: Ref<HTMLDivElement> }) {
   const tasks = useStore((s) => s.tasks);
+  // while it fades out on top of the next list it must not take taps
+  const present = useIsPresent();
   const groups = useMemo(() => planCandidates(tasks, day), [tasks, day]);
   const [chosen, setChosen] = useState<Set<string>>(
     () => new Set([...groups.picked, ...groups.leftover].map((t) => t.id)),
@@ -94,7 +97,6 @@ export function PlanScreen({ day, onDone }: { day: string; onDone: () => void })
     return (
       <motion.li
         key={t.id}
-        layout="position"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: "spring", stiffness: 420, damping: 32 }}
@@ -164,10 +166,12 @@ export function PlanScreen({ day, onDone }: { day: string; onDone: () => void })
 
   return (
     <motion.div
+      ref={ref}
+      {...(present ? {} : { inert: true, "aria-hidden": true })}
       className="plan"
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -12 }}
+      exit={{ opacity: 0, y: -12, transition: { duration: 0.18 } }}
       data-testid="plan"
     >
       <div className="plan-head">
@@ -183,9 +187,7 @@ export function PlanScreen({ day, onDone }: { day: string; onDone: () => void })
 
       {pool.length > 0 && <ListTools query={query} onQuery={setQuery} mode={mode} onMode={setMode} />}
       <motion.ul className="plan-list" data-testid="plan-list">
-        <AnimatePresence initial={false} mode="popLayout">
-          {shown.map(item)}
-        </AnimatePresence>
+        {shown.map(item)}
       </motion.ul>
       {pool.length > 0 && shown.length === 0 && (
         <p className="no-match" data-testid="no-match">
