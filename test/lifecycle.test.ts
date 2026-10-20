@@ -39,7 +39,7 @@ describe("lifecycle fields", () => {
     const cookie = await login("lf2");
     await put("lf2-a", task({ status: "done", updatedAt: 100 }), cookie);
     expect((await byId(cookie, "lf2-a")).doneAt).toBe(100);
-    await put("lf2-a", task({ status: "doing", doneAt: 100, updatedAt: 200 }), cookie);
+    await put("lf2-a", task({ status: "todo", doneAt: 100, updatedAt: 200 }), cookie);
     expect((await byId(cookie, "lf2-a")).doneAt).toBeNull();
   });
 

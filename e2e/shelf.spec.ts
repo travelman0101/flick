@@ -17,10 +17,10 @@ async function makeDone(app: Page, title: string) {
   await app.getByTestId("tab-todo").click();
   await addMemo(app, title);
   await card(app, title).click();
-  await app.getByTestId("detail-sheet").getByRole("radio", { name: "完了" }).click();
+  await app.getByTestId("detail-sheet").getByRole("radio", { name: "完了", exact: true }).click();
 }
 
-test("done → archive → trash → restore puts it back in the archive; archive → doing", async ({ app }) => {
+test("done → archive → trash → restore puts it back in the archive; archive → 未完了", async ({ app }) => {
   await makeDone(app, "卒論の提出");
   await app.getByTestId("detail-sheet").getByTestId("to-archive").click();
   await expect(app.getByTestId("detail-sheet")).toHaveCount(0);
@@ -38,10 +38,10 @@ test("done → archive → trash → restore puts it back in the archive; archiv
   await closeShelf(app, "trash");
 
   shelf = await openShelf(app, "archive");
-  await shelf.getByTestId("shelf-to-doing").click();
+  await shelf.getByTestId("shelf-to-todo").click();
   await expect(shelf.getByTestId("shelf-item")).toHaveCount(0);
   await closeShelf(app, "archive");
-  await app.getByTestId("tab-doing").click();
+  await app.getByTestId("tab-todo").click();
   await expect(card(app, "卒論の提出")).toBeVisible();
 });
 

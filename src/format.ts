@@ -1,6 +1,6 @@
 import type { Status } from "../shared/types";
 
-export const STATUS_LABEL: Record<Status, string> = { todo: "未着手", doing: "進行中", done: "完了" };
+export const STATUS_LABEL: Record<Status, string> = { todo: "未完了", done: "完了" };
 
 const WD = ["日", "月", "火", "水", "木", "金", "土"];
 

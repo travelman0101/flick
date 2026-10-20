@@ -1,10 +1,10 @@
 import { motion } from "motion/react";
 import { STATUSES } from "../../shared/types";
-import { STATUS_LABEL } from "../format";
 import type { View } from "../view";
 
 export const VIEWS: View[] = ["today", ...STATUSES];
-const LABEL: Record<View, string> = { today: "今日", ...STATUS_LABEL };
+// "今日" is a mark, not a status: picked tasks also show under タスク (all open tasks)
+const LABEL: Record<View, string> = { today: "今日", todo: "タスク", done: "完了" };
 
 interface Props {
   value: View;

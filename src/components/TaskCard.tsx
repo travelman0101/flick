@@ -2,7 +2,7 @@ import { animate, motion, useMotionValue, useTransform, type PanInfo } from "mot
 import { useRef, useState } from "react";
 import type { Task } from "../../shared/types";
 import { dueLabel, haptic, STATUS_LABEL } from "../format";
-import { Archive, ArrowLeft, ArrowRight, Check, NoteIcon, Paperclip, Sun, Trash } from "./icons";
+import { Archive, ArrowLeft, Check, NoteIcon, Paperclip, Sun, Trash } from "./icons";
 
 const THRESHOLD = 96;
 const VELOCITY = 650;
@@ -37,10 +37,9 @@ export function TaskCard({ task, subtasks, onOpen, onFlick, leftLabel, pickedTod
   const rotate = useTransform(x, [-240, 0, 240], [-4, 0, 4]);
   const scale = useTransform(x, [-THRESHOLD, 0, THRESHOLD], [0.98, 1, 0.98]);
 
-  const nextLabel = task.status === "todo" ? STATUS_LABEL.doing : task.status === "doing" ? STATUS_LABEL.done : "アーカイブに保存";
+  const nextLabel = task.status === "todo" ? STATUS_LABEL.done : "アーカイブに保存";
   const trashes = task.status === "todo" && !leftLabel;
-  const prevLabel =
-    task.status === "todo" ? (leftLabel ?? "ゴミ箱") : task.status === "doing" ? STATUS_LABEL.todo : "進行中に戻す";
+  const prevLabel = task.status === "todo" ? (leftLabel ?? "ゴミ箱") : "未完了に戻す";
 
   function onDrag(_: unknown, info: PanInfo) {
     const o = info.offset.x;
@@ -83,7 +82,7 @@ export function TaskCard({ task, subtasks, onOpen, onFlick, leftLabel, pickedTod
     <div className="card-shell" data-testid="task" data-id={task.id} data-status={task.status}>
       <motion.div className={`swipe-bg right ${task.status === "done" ? "keep" : ""}`} style={{ opacity: rightOpacity }} aria-hidden>
         <motion.span className="swipe-hint" animate={{ scale: armed === 1 ? 1.15 : 0.9 }}>
-          {task.status === "doing" ? <Check /> : task.status === "done" ? <Archive /> : <ArrowRight />}
+          {task.status === "done" ? <Archive /> : <Check />}
           {nextLabel}
         </motion.span>
       </motion.div>
@@ -160,12 +159,12 @@ export function TaskCard({ task, subtasks, onOpen, onFlick, leftLabel, pickedTod
   );
 }
 
-/** Doing fills with whole-task progress (done subtasks ÷ subtasks); half when there are none. */
+/** Open tasks fill orange with whole-task progress (done subtasks ÷ subtasks) once one is done. */
 function StatusDot({ status, progress }: { status: Task["status"]; progress: number | null }) {
-  const p = status === "doing" ? (progress ?? 0.5) : status === "done" ? 1 : 0;
+  const p = status === "done" ? 1 : (progress ?? 0);
   return (
     <motion.span
-      className={`dot ${status}`}
+      className={`dot ${status} ${status === "todo" && p > 0 ? "started" : ""}`}
       aria-hidden
       data-testid="status-dot"
       data-progress={Math.round(p * 100)}

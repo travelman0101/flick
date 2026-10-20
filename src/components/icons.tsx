@@ -45,6 +45,12 @@ export const Archive = (p: SVGProps<SVGSVGElement>) => (
     <path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8M10 12h4" />
   </svg>
 );
+export const Search = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="M16 16l4 4" />
+  </svg>
+);
 export const Trash = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 12.5h9l1-12.5M10 11v5M14 11v5" />

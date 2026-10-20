@@ -1,4 +1,4 @@
-import { addMemo, card, expect, test } from "./fixtures";
+import { addMemo, card, clickSettled, expect, test } from "./fixtures";
 
 // 1x1 transparent PNG
 const PNG = Buffer.from(
@@ -39,7 +39,7 @@ test("AI tidies a dictated note: preview first, replace, then undo", async ({ ap
   const savedNote = async () =>
     (await (await app.request.get("/api/tasks")).json()).tasks.find((t: { title: string }) => t.title === "合宿の連絡")?.note;
 
-  await sheet.getByTestId("tidy").click();
+  await clickSettled(sheet.getByTestId("tidy"));
   const preview = sheet.getByTestId("tidy-preview");
   await expect(preview.getByRole("heading", { name: "整理したメモ" })).toBeVisible();
   // nothing changes until confirmed
@@ -50,7 +50,7 @@ test("AI tidies a dictated note: preview first, replace, then undo", async ({ ap
   await expect(preview).toHaveCount(0);
   await expect(sheet.getByTestId("note")).toHaveValue(raw);
 
-  await sheet.getByTestId("tidy").click();
+  await clickSettled(sheet.getByTestId("tidy"));
   await sheet.getByTestId("tidy-apply").click();
   const view = sheet.getByTestId("note-view");
   await expect(view.getByRole("heading", { name: "整理したメモ" })).toBeVisible();

@@ -9,7 +9,10 @@ import { OrganizeSheet } from "./components/OrganizeSheet";
 import { dayLabel, PlanScreen } from "./components/PlanScreen";
 import { StatusTabs, VIEWS } from "./components/StatusTabs";
 import { TaskCard } from "./components/TaskCard";
+import { ListTools } from "./components/ListTools";
 import { TaskDetail } from "./components/TaskDetail";
+import { matches, sortTasks } from "./sort";
+import { useSortMode } from "./useSortMode";
 import { ToastView } from "./components/ToastView";
 import { logicalDay } from "./day";
 import { takeDriveReturn } from "./drivePicker";
@@ -91,6 +94,9 @@ function Main() {
   const [replan, setReplan] = useState(false);
   const [driveReturn, setDriveReturn] = useState<string | null>(null);
   const [shelf, setShelf] = useState<ShelfKind | null>(null);
+  // タスク tab: search and sort change only what is shown
+  const [taskQuery, setTaskQuery] = useState("");
+  const [taskSort, setTaskSort] = useSortMode("tasks", "added");
   const firstPaint = useRef(true);
 
   // back from connecting Google Drive: reopen the task and its picker
@@ -122,7 +128,17 @@ function Main() {
   const groups = planCandidates(tasks, day);
   // The first open of the day asks what today is about, when there is something to choose from.
   const planning = view === "today" && (replan || (!isPlanned(day) && groups.leftover.length + groups.rest.length > 0));
-  const list = view === "today" ? today : topLevel(tasks, view);
+  const openTasks = view === "todo" ? topLevel(tasks, "todo") : [];
+  const list =
+    view === "today"
+      ? today
+      : view === "todo"
+        ? sortTasks(
+            openTasks.filter((t) => matches(t, taskQuery)),
+            taskSort,
+            { day, started: (t) => progressOf(tasks, t.id).done > 0 },
+          )
+        : topLevel(tasks, view);
   const achieved = today.filter((t) => goalOf(tasks, t, day).achieved).length;
   const c = { ...counts(tasks), today: today.length - achieved };
 
@@ -184,6 +200,11 @@ function Main() {
             data-testid={`list-${view}`}
           >
             {view === "today" && <TodayHeader day={day} total={today.length} achieved={achieved} onPlan={() => setReplan(true)} />}
+            {view === "todo" && openTasks.length > 0 && (
+              <motion.li className="tools-row" layout="position">
+                <ListTools query={taskQuery} onQuery={setTaskQuery} mode={taskSort} onMode={setTaskSort} />
+              </motion.li>
+            )}
             <AnimatePresence mode="popLayout" initial={true}>
               {list.map((t, i) => {
                 const progress = progressOf(tasks, t.id);
@@ -221,7 +242,7 @@ function Main() {
                   data-testid="empty"
                 >
                   <span className="empty-orb" aria-hidden />
-                  なし
+                  {view === "todo" && openTasks.length > 0 ? <span data-testid="no-match">一致するタスクがありません</span> : "なし"}
                 </motion.li>
               )}
             </AnimatePresence>

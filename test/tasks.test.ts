@@ -17,9 +17,16 @@ describe("tasks", () => {
   it("applies newer updates and ignores stale ones", async () => {
     const cookie = await login("t2");
     await put("b1", task({ updatedAt: 1000 }), cookie);
-    await put("b1", task({ status: "doing", updatedAt: 2000 }), cookie);
+    await put("b1", task({ status: "done", updatedAt: 2000 }), cookie);
     const stale = await put("b1", task({ status: "todo", updatedAt: 1500 }), cookie);
-    expect(((await stale.json()) as any).task.status).toBe("doing");
+    expect(((await stale.json()) as any).task.status).toBe("done");
+  });
+
+  it('stores an old client\'s "doing" as todo', async () => {
+    const cookie = await login("t2b");
+    const res = await put("b2", task({ status: "doing" }), cookie);
+    expect(res.status).toBe(200);
+    expect(await list(cookie)).toMatchObject([{ id: "b2", status: "todo" }]);
   });
 
   it("lists archived tasks with archivedAt set (the client shows them in the archive)", async () => {

@@ -54,3 +54,20 @@ export async function flick(page: Page, target: Locator, dx: number) {
   for (let i = 1; i <= 8; i++) await page.mouse.move(x + (dx * i) / 8, y + i * 0.5);
   await page.mouse.up();
 }
+
+/** Click once the element has stopped moving (sheets and folds open with springs; a loaded CI box can lag). */
+export async function clickSettled(target: Locator) {
+  const seen: string[] = [];
+  await expect
+    .poll(
+      async () => {
+        const b = await target.boundingBox();
+        seen.push(b ? `${Math.round(b.x)},${Math.round(b.y)},${Math.round(b.height)}` : "");
+        const [a, c, d] = seen.slice(-3);
+        return seen.length >= 3 && a !== "" && a === c && c === d;
+      },
+      { intervals: [100] },
+    )
+    .toBe(true);
+  await target.click();
+}

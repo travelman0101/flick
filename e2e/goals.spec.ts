@@ -37,7 +37,8 @@ test("report with 4 subtasks: today's goal is 2 of them, so finishing those is d
   await close(app);
 
   const report = card(app, "レポート作成");
-  await expect(report).toHaveAttribute("data-status", "doing");
+  // still 未完了 as a whole: there is no "doing" status any more
+  await expect(report).toHaveAttribute("data-status", "todo");
   await expect(report.getByTestId("goal-chip")).toHaveText("今日分 完了");
   await expect(dot(app, "レポート作成")).toHaveAttribute("data-progress", "50");
   await expect(app.getByTestId("today-progress")).toHaveText("1 / 1 達成");
@@ -60,17 +61,19 @@ test("report with 4 subtasks: today's goal is 2 of them, so finishing those is d
     .toBe(3);
 });
 
-test("the doing icon fills with progress and recalculates on undo and delete", async ({ app }) => {
+test("the progress icon fills with done subtasks and recalculates on undo and delete", async ({ app }) => {
   await app.getByTestId("tab-todo").click();
   await addMemo(app, "引っ越し");
   await card(app, "引っ越し").click();
   const sheet = sheetOf(app);
   await addSubs(sheet, ["段ボール", "荷造り", "住所変更", "掃除"]);
+  await close(app);
+  await expect(dot(app, "引っ越し")).toHaveAttribute("data-progress", "0");
+  await card(app, "引っ越し").click();
   await tick(sheet, "段ボール");
   await close(app);
-
-  await app.getByTestId("tab-doing").click();
   await expect(dot(app, "引っ越し")).toHaveAttribute("data-progress", "25");
+  await expect(card(app, "引っ越し")).toHaveAttribute("data-status", "todo");
   await card(app, "引っ越し").click();
   await tick(sheet, "荷造り");
   await close(app);
@@ -85,15 +88,15 @@ test("the doing icon fills with progress and recalculates on undo and delete", a
   await expect(card(app, "引っ越し")).toContainText("1/3");
 });
 
-test("the first finished subtask starts a task; a due date alone does not", async ({ app }) => {
+test("finishing subtasks or setting a due date never changes the status by itself", async ({ app }) => {
   await app.getByTestId("tab-todo").click();
   await addMemo(app, "願書を出す");
   await card(app, "願書を出す").click();
   const sheet = sheetOf(app);
   await sheet.getByLabel("期限").fill("2026-12-01");
   // a tap right after the date picker closes must not change the status (iPhone)
-  await sheet.getByRole("radio", { name: "進行中" }).click();
-  await expect(sheet.getByRole("radio", { name: "未着手" })).toHaveAttribute("aria-checked", "true");
+  await sheet.getByRole("radio", { name: "完了", exact: true }).click();
+  await expect(sheet.getByRole("radio", { name: "未完了" })).toHaveAttribute("aria-checked", "true");
   await close(app);
   await expect(card(app, "願書を出す")).toHaveAttribute("data-status", "todo");
 
@@ -101,9 +104,12 @@ test("the first finished subtask starts a task; a due date alone does not", asyn
   await addSubs(sheet, ["写真を撮る"]);
   await tick(sheet, "写真を撮る");
   await expect(app.getByTestId("toast").filter({ hasText: "すべて完了。タスクも完了にする？" })).toBeVisible();
-  await expect(sheet.getByRole("radio", { name: "進行中" })).toHaveAttribute("aria-checked", "true");
+  await expect(sheet.getByRole("radio", { name: "未完了" })).toHaveAttribute("aria-checked", "true");
+  // accepting the offer finishes the whole task
+  await app.getByTestId("toast").filter({ hasText: "すべて完了" }).getByRole("button", { name: "完了にする" }).click();
+  await expect(sheet.getByTestId("to-todo")).toBeVisible();
   await close(app);
-  await app.getByTestId("tab-doing").click();
+  await app.getByTestId("tab-done").click();
   await expect(card(app, "願書を出す")).toBeVisible();
 });
 
@@ -126,21 +132,21 @@ test("postpone keeps progress, and undo brings back today and its goals", async 
   await expect(toggle).toHaveText("今日やるに追加");
   await expect(sheet.getByTestId("goal-toggle")).toHaveCount(0);
   await expect(sheet.getByTestId("sub-progress")).toHaveText("全体 1/2");
-  await expect(sheet.getByRole("radio", { name: "進行中" })).toHaveAttribute("aria-checked", "true");
+  await expect(sheet.getByRole("radio", { name: "未完了" })).toHaveAttribute("aria-checked", "true");
 
   await postponed.getByRole("button", { name: "元に戻す" }).click();
   await expect(toggle).toHaveText("明日以降に延期");
   await expect(sheet.getByTestId("goal-progress")).toHaveText("今日 1/2");
 });
 
-test("done list: right flick keeps it in the archive, left returns it to doing", async ({ app }) => {
+test("done list: right flick keeps it in the archive, left returns it to 未完了", async ({ app }) => {
   await app.getByTestId("tab-todo").click();
   for (const t of ["発表資料", "見積もり"]) {
     await addMemo(app, t);
     await card(app, t).click();
-    await sheetOf(app).getByRole("radio", { name: "完了" }).click();
+    await sheetOf(app).getByRole("radio", { name: "完了", exact: true }).click();
     // a done task offers exactly these two
-    await expect(sheetOf(app).getByTestId("to-doing")).toHaveText("進行中に戻す");
+    await expect(sheetOf(app).getByTestId("to-todo")).toHaveText("未完了に戻す");
     await expect(sheetOf(app).getByTestId("to-archive")).toHaveText("アーカイブに保存");
     await expect(sheetOf(app).getByRole("radio")).toHaveCount(0);
     await close(app);
@@ -154,7 +160,7 @@ test("done list: right flick keeps it in the archive, left returns it to doing",
 
   await flick(app, card(app, "見積もり"), -220);
   await expect(card(app, "見積もり")).toHaveCount(0);
-  await app.getByTestId("tab-doing").click();
+  await app.getByTestId("tab-todo").click();
   await expect(card(app, "見積もり")).toBeVisible();
   await expect(app.getByTestId("count-done")).toHaveText("0");
 });

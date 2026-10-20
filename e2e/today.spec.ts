@@ -75,10 +75,7 @@ test("in Today, flicks change status in place and left postpones", async ({ app 
   await addMemo(app, "メールを返す");
   await expect(app.getByTestId("today-progress")).toHaveText("0 / 2 達成");
 
-  await flick(app, card(app, "報告書を書く"), 220);
-  await expect(card(app, "報告書を書く")).toHaveAttribute("data-status", "doing");
-  // the card comes back to the same place, it does not jump to the top
-  await expect(cards(app).locator(".card-title")).toHaveText(["メールを返す", "報告書を書く"]);
+  // a right flick finishes it, and it stays in today's list
   await flick(app, card(app, "報告書を書く"), 220);
   await expect(card(app, "報告書を書く")).toHaveAttribute("data-status", "done");
   await expect(app.getByTestId("today-progress")).toHaveText("1 / 2 達成");

@@ -1,11 +1,13 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
-import type { Task } from "../../shared/types";
 import { api, HttpError } from "../api";
 import { dueLabel, haptic } from "../format";
-import { childrenOf, flush, planCandidates, startDay, useStore } from "../store";
+import { matches, sortTasks } from "../sort";
+import { childrenOf, flush, planCandidates, progressOf, startDay, useStore } from "../store";
 import { toast } from "../toast";
+import { useSortMode } from "../useSortMode";
 import { Check, Sparkle, Sun } from "./icons";
+import { ListTools } from "./ListTools";
 
 const WD = ["日", "月", "火", "水", "木", "金", "土"];
 const dayLabel = (day: string) => {
@@ -14,8 +16,9 @@ const dayLabel = (day: string) => {
 };
 
 /**
- * The morning pick: every open task, tap to choose what today is about.
- * Tasks due today are always in today's list, so they show as chosen and locked.
+ * The morning pick: every open task in one list, tap to choose what today is about.
+ * Search and sort only change what is shown; choices stay. Tasks due today are always
+ * in today's list, so they show as chosen and locked ("自動").
  */
 export function PlanScreen({ day, onDone }: { day: string; onDone: () => void }) {
   const tasks = useStore((s) => s.tasks);
@@ -39,6 +42,17 @@ export function PlanScreen({ day, onDone }: { day: string; onDone: () => void })
     });
   };
   const [thinking, setThinking] = useState(false);
+  const [query, setQuery] = useState("");
+  const [mode, setMode] = useSortMode("plan", "recommended");
+  const locked = useMemo(() => new Set(groups.due.map((t) => t.id)), [groups]);
+  const leftover = useMemo(() => new Set(groups.leftover.map((t) => t.id)), [groups]);
+  // done tasks are never candidates (planCandidates leaves them out)
+  const pool = [...groups.picked, ...groups.leftover, ...groups.due, ...groups.rest];
+  const shown = sortTasks(
+    pool.filter((t) => matches(t, query)),
+    mode,
+    { day, started: (t) => progressOf(tasks, t.id).done > 0 },
+  );
 
   const toggle = (id: string) => {
     haptic(6);
@@ -72,78 +86,81 @@ export function PlanScreen({ day, onDone }: { day: string; onDone: () => void })
     onDone();
   };
 
-  const section = (title: string, list: Task[], locked = false) =>
-    list.length > 0 && (
-      <motion.section key={title} className="plan-section" layout>
-        <h3>{title}</h3>
-        <motion.ul
-          className="plan-list"
-          initial="initial"
-          animate="animate"
-          variants={{ animate: { transition: { staggerChildren: 0.035 } } }}
+  const item = (t: (typeof pool)[number]) => {
+    const isLocked = locked.has(t.id);
+    const on = isLocked || chosen.has(t.id);
+    const due = t.due ? dueLabel(t.due) : null;
+    const prog = progressOf(tasks, t.id);
+    return (
+      <motion.li
+        key={t.id}
+        layout="position"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 420, damping: 32 }}
+      >
+        <motion.button
+          className={`plan-item ${on ? "on" : ""} ${isLocked ? "locked" : ""}`}
+          aria-pressed={on}
+          disabled={isLocked}
+          whileTap={{ scale: 0.97 }}
+          onClick={() => toggle(t.id)}
+          data-testid="plan-item"
         >
-          {list.map((t) => {
-            const on = locked || chosen.has(t.id);
-            const due = t.due ? dueLabel(t.due) : null;
-            return (
-              <motion.li
-                key={t.id}
-                variants={{
-                  initial: { opacity: 0, y: 10 },
-                  animate: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 420, damping: 32 } },
-                }}
-              >
-                <motion.button
-                  className={`plan-item ${on ? "on" : ""} ${locked ? "locked" : ""}`}
-                  aria-pressed={on}
-                  disabled={locked}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => toggle(t.id)}
-                  data-testid="plan-item"
-                >
-                  <motion.span className="plan-check" animate={{ scale: on ? [1, 1.25, 1] : 1 }} transition={{ duration: 0.25 }}>
-                    {on && <Check width={13} height={13} />}
-                  </motion.span>
-                  <span className="plan-title">
-                    {t.title}
-                    {reasons[t.id] && <span className="plan-reason">{reasons[t.id]}</span>}
-                  </span>
-                  {due && <span className={`chip due ${due.tone}`}>{due.text}</span>}
-                  {t.status === "doing" && <span className="chip">進行中</span>}
-                </motion.button>
-                <AnimatePresence initial={false}>
-                  {on && openSubs(t.id).length > 0 && (
-                    <motion.ul
-                      className="plan-goals"
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ type: "spring", stiffness: 420, damping: 36 }}
-                    >
-                      <li className="plan-goals-hint">今日やる分をタップ</li>
-                      {openSubs(t.id).map((sub) => (
-                        <li key={sub.id}>
-                          <motion.button
-                            whileTap={{ scale: 0.97 }}
-                            className={`plan-goal ${goals.has(sub.id) ? "on" : ""}`}
-                            aria-pressed={goals.has(sub.id)}
-                            onClick={() => toggleGoal(sub.id)}
-                            data-testid="plan-goal"
-                          >
-                            <Sun width={14} height={14} />
-                            {sub.title}
-                          </motion.button>
-                        </li>
-                      ))}
-                    </motion.ul>
-                  )}
-                </AnimatePresence>
-              </motion.li>
-            );
-          })}
-        </motion.ul>
-      </motion.section>
+          <motion.span className="plan-check" animate={{ scale: on ? [1, 1.25, 1] : 1 }} transition={{ duration: 0.25 }}>
+            {on && <Check width={13} height={13} />}
+          </motion.span>
+          <span className="plan-title">
+            {t.title}
+            {reasons[t.id] && <span className="plan-reason">{reasons[t.id]}</span>}
+          </span>
+          {isLocked && (
+            <span className="chip auto" data-testid="plan-auto">
+              自動
+            </span>
+          )}
+          {leftover.has(t.id) && (
+            <span className="chip leftover" data-testid="plan-leftover">
+              昨日の残り
+            </span>
+          )}
+          {prog.total > 0 && (
+            <span className={`chip progress ${prog.done > 0 ? "started" : ""}`}>
+              {prog.done}/{prog.total}
+            </span>
+          )}
+          {due && <span className={`chip due ${due.tone}`}>{due.text}</span>}
+        </motion.button>
+        <AnimatePresence initial={false}>
+          {on && openSubs(t.id).length > 0 && (
+            <motion.ul
+              className="plan-goals"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 420, damping: 36 }}
+            >
+              <li className="plan-goals-hint">今日やる分をタップ</li>
+              {openSubs(t.id).map((sub) => (
+                <li key={sub.id}>
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    className={`plan-goal ${goals.has(sub.id) ? "on" : ""}`}
+                    aria-pressed={goals.has(sub.id)}
+                    onClick={() => toggleGoal(sub.id)}
+                    data-testid="plan-goal"
+                  >
+                    <Sun width={14} height={14} />
+                    {sub.title}
+                  </motion.button>
+                </li>
+              ))}
+            </motion.ul>
+          )}
+        </AnimatePresence>
+      </motion.li>
     );
+  };
 
   return (
     <motion.div
@@ -164,10 +181,17 @@ export function PlanScreen({ day, onDone }: { day: string; onDone: () => void })
         </motion.button>
       </div>
 
-      {section("選択中", groups.picked)}
-      {section("昨日の残り", groups.leftover)}
-      {section("期限が今日まで", groups.due, true)}
-      {section("そのほか", groups.rest)}
+      {pool.length > 0 && <ListTools query={query} onQuery={setQuery} mode={mode} onMode={setMode} />}
+      <motion.ul className="plan-list" data-testid="plan-list">
+        <AnimatePresence initial={false} mode="popLayout">
+          {shown.map(item)}
+        </AnimatePresence>
+      </motion.ul>
+      {pool.length > 0 && shown.length === 0 && (
+        <p className="no-match" data-testid="no-match">
+          一致するタスクがありません
+        </p>
+      )}
 
       <div className="plan-bar">
         <motion.button whileTap={{ scale: 0.97 }} className="btn primary wide" onClick={start} data-testid="plan-start">

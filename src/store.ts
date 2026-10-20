@@ -284,20 +284,18 @@ export function moveTask(id: string, dir: 1 | -1, keepPlace = false): "moved" | 
 }
 
 /**
- * Tick a subtask. The first finished subtask means work has started, so a todo parent becomes doing
- * (in place: Today keeps its order). Unticking never moves the parent back.
+ * Tick a subtask. The parent's status never changes by itself (progress shows on its icon);
+ * allDone tells the caller to offer finishing the whole task.
  */
-export function toggleSub(subId: string): { started: boolean; allDone: boolean } {
+export function toggleSub(subId: string): { allDone: boolean } {
   const s = state.tasks[subId];
-  if (!s) return { started: false, allDone: false };
+  if (!s) return { allDone: false };
   const done = s.status !== "done";
   save({ ...s, status: done ? "done" : "todo" });
   const parent = s.parentId ? state.tasks[s.parentId] : undefined;
-  if (!parent || !done) return { started: false, allDone: false };
-  const started = parent.status === "todo";
-  if (started) save({ ...parent, status: "doing" });
+  if (!parent || !done) return { allDone: false };
   const { done: d, total } = progressOf(state.tasks, parent.id);
-  return { started, allDone: total > 0 && d === total && parent.status !== "done" };
+  return { allDone: total > 0 && d === total && parent.status !== "done" };
 }
 
 /** Attachment counts are server-owned: update locally without queueing a write. */
@@ -343,10 +341,10 @@ export function unarchiveInPlace(id: string) {
   if (t) save({ ...t, archivedAt: null });
 }
 
-/** From the archive back to doing. */
+/** From the archive back to the open tasks (未完了). */
 export function unarchive(id: string) {
   const t = state.tasks[id];
-  if (t) save({ ...t, archivedAt: null, status: "doing", position: topPosition() });
+  if (t) save({ ...t, archivedAt: null, status: "todo", position: topPosition() });
 }
 
 function forget(ids: Set<string>) {

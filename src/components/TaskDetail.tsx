@@ -69,10 +69,9 @@ export function TaskDetail({
 
   const tick = (subId: string) => {
     const parentId = task?.id;
-    const { started, allDone } = toggleSub(subId);
+    const { allDone } = toggleSub(subId);
     if (allDone && parentId)
       toast("すべて完了。タスクも完了にする？", { label: "完了にする", run: () => updateTask(parentId, { status: "done", position: topPosition() }) });
-    else if (started) toast("進行中にしました");
   };
 
   const trash = (id: string) => {
@@ -147,11 +146,11 @@ export function TaskDetail({
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 className="btn small ghost"
-                onClick={() => updateTask(task.id, { status: "doing", position: topPosition() })}
-                data-testid="to-doing"
+                onClick={() => updateTask(task.id, { status: "todo", position: topPosition() })}
+                data-testid="to-todo"
               >
                 <ArrowLeft width={16} height={16} />
-                進行中に戻す
+                未完了に戻す
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.97 }}

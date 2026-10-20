@@ -58,6 +58,8 @@ function parseTask(id: string, b: any): Parsed | null {
   // older clients do not send a note
   const note = b.note === undefined ? "" : b.note;
   if (typeof note !== "string" || note.length > NOTE_MAX) return null;
+  // "doing" was removed: older clients may still send it, and it means not done
+  if (b.status === "doing") b.status = "todo";
   if (!STATUSES.includes(b.status)) return null;
   if (b.parentId !== null && !(typeof b.parentId === "string" && ID.test(b.parentId))) return null;
   if (b.due !== null && !(typeof b.due === "string" && DATE.test(b.due))) return null;

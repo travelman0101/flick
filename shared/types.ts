@@ -1,4 +1,4 @@
-export const STATUSES = ["todo", "doing", "done"] as const;
+export const STATUSES = ["todo", "done"] as const;
 export type Status = (typeof STATUSES)[number];
 
 export interface Task {

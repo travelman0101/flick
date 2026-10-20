@@ -100,8 +100,8 @@ export function ShelfSheet({ kind, onClose }: { kind: ShelfKind | null; onClose:
                 <div className="shelf-actions">
                   {kind === "archive" ? (
                     <>
-                      <motion.button whileTap={{ scale: 0.94 }} className="btn small ghost" onClick={() => unarchive(t.id)} data-testid="shelf-to-doing">
-                        進行中に戻す
+                      <motion.button whileTap={{ scale: 0.94 }} className="btn small ghost" onClick={() => unarchive(t.id)} data-testid="shelf-to-todo">
+                        未完了に戻す
                       </motion.button>
                       <motion.button
                         whileTap={{ scale: 0.94 }}

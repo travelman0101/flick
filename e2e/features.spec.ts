@@ -46,10 +46,11 @@ test("task detail: edit status, AI subtasks, trash", async ({ app }) => {
   await expect(sheet.getByTestId("subtask")).toHaveCount(3);
   await sheet.getByTestId("subtask").first().getByRole("button", { name: "完了にする" }).click();
 
-  await sheet.getByRole("radio", { name: "進行中" }).click();
+  // only two statuses now
+  await expect(sheet.getByRole("radio")).toHaveText(["未完了", "完了"]);
   await sheet.getByRole("button", { name: "閉じる" }).click();
   await expect(sheet).toHaveCount(0);
-  await app.getByTestId("tab-doing").click();
+  await app.getByTestId("tab-todo").click();
   await expect(card(app, "旅行の準備")).toContainText("1/3");
 
   await card(app, "旅行の準備").click();

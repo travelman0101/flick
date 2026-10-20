@@ -242,28 +242,33 @@ ai.post("/subtasks", async (c) => {
 ai.post("/today", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const { results } = await c.env.DB.prepare(
-    `SELECT id, title, status, due FROM tasks
-     WHERE user_id = ? AND archived_at IS NULL AND trashed_at IS NULL AND status != 'done' AND parent_id IS NULL
-     ORDER BY position DESC LIMIT 60`,
+    `SELECT t.id, t.title, t.due,
+       (SELECT COUNT(*) FROM tasks s WHERE s.parent_id = t.id AND s.archived_at IS NULL AND s.trashed_at IS NULL) AS subs,
+       (SELECT COUNT(*) FROM tasks s WHERE s.parent_id = t.id AND s.archived_at IS NULL AND s.trashed_at IS NULL AND s.status = 'done') AS subs_done
+     FROM tasks t
+     WHERE t.user_id = ? AND t.archived_at IS NULL AND t.trashed_at IS NULL AND t.status != 'done' AND t.parent_id IS NULL
+     ORDER BY t.position DESC LIMIT 60`,
   )
     .bind(c.get("user").id)
-    .all<{ id: string; title: string; status: string; due: string | null }>();
+    .all<{ id: string; title: string; due: string | null; subs: number; subs_done: number }>();
+  // started = at least one subtask done (there is no "doing" status)
+  const started = (t: (typeof results)[number]) => t.subs_done > 0;
   if (results.length === 0) return c.json({ picks: [] } satisfies TodayResult);
   if (c.env.AI_MOCK === "1") {
-    return c.json({ picks: results.slice(0, 3).map((t) => ({ id: t.id, reason: t.status === "doing" ? "進行中" : "早めに片づけたい" })) });
+    return c.json({ picks: results.slice(0, 3).map((t) => ({ id: t.id, reason: started(t) ? "着手済み" : "早めに片づけたい" })) });
   }
 
   const list = results
     .map((t) => {
       const due = t.due ? `${t.due}（${daysLeft(body.today, t.due) < 0 ? "期限切れ" : `あと${daysLeft(body.today, t.due)}日`}）` : "なし";
-      return `- id=${t.id} | ${t.title} | ${t.status === "doing" ? "進行中" : "未着手"} | 期限: ${due}`;
+      return `- id=${t.id} | ${t.title} | ${started(t) ? `着手済み（サブタスク ${t.subs_done}/${t.subs} 完了）` : "未着手"} | 期限: ${due}`;
     })
     .join("\n");
   const raw = await runJson(
     c,
     `今日は ${todayLabel(body.today)} です。タスク一覧から、今日取り組むべきものを最大 3 つ選んでください。
-優先順位: 1) 期限切れ・今日・明日 2) 進行中 3) 数日以内の期限 4) すぐ終わる小さなタスク。期限まで 1 週間以上あるものは原則選ばない。
-reason は選んだ理由を 20 文字以内の日本語で具体的に（例: 「期限は明日」「進行中で仕上げ段階」「5分で終わる」）。
+優先順位: 1) 期限切れ・今日・明日 2) 着手済み 3) 数日以内の期限 4) すぐ終わる小さなタスク。期限まで 1 週間以上あるものは原則選ばない。
+reason は選んだ理由を 20 文字以内の日本語で具体的に（例: 「期限は明日」「着手済みで仕上げ段階」「5分で終わる」）。
 id は一覧の id をそのまま使う。出力は JSON オブジェクトのみ: {"picks":[{"id":"...","reason":"..."}]}`,
     list,
   );
