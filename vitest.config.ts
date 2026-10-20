@@ -10,7 +10,7 @@ export default defineConfig(async () => {
         // Tests inject a fake AI binding, so never open a remote session.
         remoteBindings: false,
         miniflare: {
-          bindings: { TEST_MIGRATIONS: migrations, DEV_AUTH: "1", AI_MOCK: "0", GOOGLE_CLIENT_ID: "test-client" },
+          bindings: { TEST_MIGRATIONS: migrations, DEV_AUTH: "1", AI_MOCK: "0", GOOGLE_CLIENT_ID: "test-client", GOOGLE_API_KEY: "test-key", GOOGLE_APP_ID: "123" },
         },
       }),
     ],

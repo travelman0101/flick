@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { STATUSES, type Status, type Task, type User } from "../shared/types";
 import { api, HttpError } from "./api";
+import { logicalDay, previousDay } from "./day";
 
 /**
  * Local-first store. Everything renders from localStorage first, every change is
@@ -13,6 +14,7 @@ const K = {
   tasks: (uid: string) => `flick:v1:tasks:${uid}`,
   outbox: (uid: string) => `flick:v1:outbox:${uid}`,
   boot: "flick:v1:boot",
+  planned: (uid: string) => `flick:v1:planned:${uid}`,
 };
 
 type AuthState = "unknown" | "in" | "out";
@@ -43,7 +45,10 @@ const write = (key: string, value: unknown) => {
 /** Tasks cached by older versions have no note. */
 const readTasks = (uid: string): Record<string, Task> => {
   const tasks = read<Record<string, Task>>(K.tasks(uid), {});
-  for (const t of Object.values(tasks)) t.note ??= "";
+  for (const t of Object.values(tasks)) {
+    t.note ??= "";
+    t.today ??= null;
+  }
   return tasks;
 };
 
@@ -90,6 +95,57 @@ export const childrenOf = (tasks: Record<string, Task>, parentId: string) =>
 export const counts = (tasks: Record<string, Task>) =>
   Object.fromEntries(STATUSES.map((s) => [s, topLevel(tasks, s).length])) as Record<Status, number>;
 
+// ---------- today ----------
+const open = (t: Task) => visible(t) && t.parentId === null;
+/** Due today or overdue and not finished: always part of today. */
+export const isDueNow = (t: Task, day: string) => t.due !== null && t.due <= day && t.status !== "done";
+export const isPicked = (t: Task, day: string) => t.today === day;
+
+/** Today's list: picked tasks plus anything due now. Unfinished first (newest on top), finished last. */
+export function todayList(tasks: Record<string, Task>, day: string) {
+  const list = Object.values(tasks).filter((t) => open(t) && (isPicked(t, day) || isDueNow(t, day)));
+  const rank = (t: Task) => (t.status === "done" ? 1 : 0);
+  return list.sort((a, b) => rank(a) - rank(b) || b.position - a.position);
+}
+
+/** Candidates for the morning pick, grouped. Already-picked tasks come first so they read as chosen. */
+export function planCandidates(tasks: Record<string, Task>, day: string) {
+  const yesterday = previousDay(day);
+  const pool = Object.values(tasks)
+    .filter((t) => open(t) && t.status !== "done")
+    .sort((a, b) => b.position - a.position);
+  return {
+    picked: pool.filter((t) => isPicked(t, day)),
+    leftover: pool.filter((t) => !isPicked(t, day) && t.today !== null && t.today >= yesterday && t.today < day),
+    due: pool.filter((t) => !isPicked(t, day) && !(t.today !== null && t.today >= yesterday && t.today < day) && isDueNow(t, day)),
+    rest: pool.filter(
+      (t) => !isPicked(t, day) && !(t.today !== null && t.today >= yesterday && t.today < day) && !isDueNow(t, day),
+    ),
+  };
+}
+
+export function isPlanned(day: string) {
+  if (!state.user) return true;
+  return read<string | null>(K.planned(state.user.id), null) === day;
+}
+
+/** Commit the morning pick: chosen tasks become today's, the rest stay where they are. */
+export function startDay(ids: string[], day = logicalDay()) {
+  const chosen = new Set(ids);
+  for (const t of Object.values(state.tasks)) {
+    if (!open(t)) continue;
+    if (chosen.has(t.id) && t.today !== day) save({ ...t, today: day });
+    else if (!chosen.has(t.id) && t.today === day) save({ ...t, today: null });
+  }
+  if (state.user) write(K.planned(state.user.id), day);
+  set({});
+}
+
+export function setToday(id: string, on: boolean, day = logicalDay()) {
+  const t = state.tasks[id];
+  if (t && (t.today === day) !== on) save({ ...t, today: on ? day : null });
+}
+
 // ---------- mutations ----------
 /** A position above every task, so the newest action always lands on top in order. */
 export function topPosition() {
@@ -110,7 +166,10 @@ function save(task: Task) {
   return next;
 }
 
-export function addTask(title: string, opts: { due?: string | null; parentId?: string | null; status?: Status } = {}) {
+export function addTask(
+  title: string,
+  opts: { due?: string | null; parentId?: string | null; status?: Status; today?: string | null } = {},
+) {
   const now = Date.now();
   const siblings = opts.parentId ? childrenOf(state.tasks, opts.parentId) : [];
   return save({
@@ -120,6 +179,7 @@ export function addTask(title: string, opts: { due?: string | null; parentId?: s
     status: opts.status ?? "todo",
     parentId: opts.parentId ?? null,
     due: opts.due ?? null,
+    today: opts.today ?? null,
     // top-level: newest first; subtasks: in insertion order
     position: opts.parentId ? (siblings.at(-1)?.position ?? 0) + 1 : topPosition(),
     createdAt: now,
@@ -133,7 +193,8 @@ export function updateTask(id: string, patch: Partial<Omit<Task, "id">>) {
   if (t) save({ ...t, ...patch });
 }
 
-export function moveTask(id: string, dir: 1 | -1): "moved" | "archived" | null {
+/** keepPlace: Today keeps cards where they are instead of lifting them to the top */
+export function moveTask(id: string, dir: 1 | -1, keepPlace = false): "moved" | "archived" | null {
   const t = state.tasks[id];
   if (!t) return null;
   const i = STATUSES.indexOf(t.status) + dir;
@@ -143,7 +204,7 @@ export function moveTask(id: string, dir: 1 | -1): "moved" | "archived" | null {
   }
   if (i >= STATUSES.length) return null;
   // Arrive at the top of the destination list.
-  save({ ...t, status: STATUSES[i], position: topPosition() });
+  save({ ...t, status: STATUSES[i], position: keepPlace ? t.position : topPosition() });
   return "moved";
 }
 
@@ -249,7 +310,8 @@ export function drainBootQueue() {
   } catch {
     /* ignore */
   }
-  q.forEach((m) => addTask(m.text));
+  // the app opens on Today, so memos typed at launch belong to today
+  q.forEach((m) => addTask(m.text, { today: logicalDay() }));
 }
 
 export async function start() {

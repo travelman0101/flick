@@ -7,11 +7,13 @@ import { compressImage, formatSize } from "../compress";
 import { haptic } from "../format";
 import { flush, setAttachmentCount } from "../store";
 import { toast } from "../toast";
-import { Close, FileIcon, Paperclip, Plus } from "./icons";
+import { pickFromDrive, rememberDriveReturn } from "../drivePicker";
+import { Close, DriveIcon, FileIcon, Paperclip, Plus } from "./icons";
 import { SkeletonRows } from "./Sheet";
 
 const MAX_BYTES = 10 * 1024 * 1024;
-const isImage = (type: string) => /^image\/(png|jpeg|gif|webp|avif)$/.test(type);
+const isImage = (att: { kind?: string; type: string }) =>
+  att.kind !== "drive" && /^image\/(png|jpeg|gif|webp|avif)$/.test(att.type);
 
 interface Uploading {
   key: string;
@@ -19,7 +21,7 @@ interface Uploading {
   preview: string | null;
 }
 
-export function Attachments({ taskId }: { taskId: string }) {
+export function Attachments({ taskId, autoDrive = false }: { taskId: string; autoDrive?: boolean }) {
   const [items, setItems] = useState<Attachment[] | null>(null);
   const [uploading, setUploading] = useState<Uploading[]>([]);
   const [armed, setArmed] = useState<string | null>(null);
@@ -118,9 +120,55 @@ export function Attachments({ taskId }: { taskId: string }) {
   }
 
   const open = (att: Attachment) => {
-    if (isImage(att.type)) setViewing(att);
-    else window.open(fileUrl(att.id), "_blank", "noopener");
+    if (isImage(att)) setViewing(att);
+    // a Drive link opens the Drive app on iPhone when it is installed
+    else window.open(att.kind === "drive" && att.url ? att.url : fileUrl(att.id), "_blank", "noopener");
   };
+
+  async function fromDrive() {
+    const forTask = taskId;
+    let token;
+    try {
+      await flush(); // the task must exist on the server first
+      token = await api.driveToken();
+    } catch (e) {
+      if (e instanceof HttpError && e.status === 409) {
+        // first time: connect Drive for the signed-in Google account, then come back here
+        rememberDriveReturn(forTask);
+        location.href = "/api/drive/connect";
+      } else toast("ドライブを開けませんでした");
+      return;
+    }
+    const files = await pickFromDrive(token).catch(() => {
+      toast("ドライブを開けませんでした");
+      return [];
+    });
+    for (const f of files) {
+      try {
+        const { attachment } = await api.linkDrive(forTask, { name: f.name, url: f.url, mimeType: f.mimeType });
+        if (live.current === forTask) {
+          setItems((list) => {
+            const next = [...(list ?? []), attachment];
+            setAttachmentCount(forTask, next.length);
+            return next;
+          });
+        }
+        haptic();
+      } catch {
+        toast(`${f.name} を添付できませんでした`);
+      }
+    }
+  }
+
+  // reopen the picker right after connecting Drive
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (autoDrive && !autoRan.current) {
+      autoRan.current = true;
+      void fromDrive();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoDrive]);
 
   return (
     <section className="atts">
@@ -134,6 +182,10 @@ export function Attachments({ taskId }: { taskId: string }) {
         >
           <Paperclip width={16} height={16} />
           追加
+        </motion.button>
+        <motion.button whileTap={{ scale: 0.94 }} className="btn small drive" onClick={() => void fromDrive()} data-testid="attach-drive">
+          <DriveIcon size={16} />
+          ドライブ
         </motion.button>
         <input
           ref={input}
@@ -157,7 +209,7 @@ export function Attachments({ taskId }: { taskId: string }) {
               <motion.li
                 key={att.id}
                 layout
-                className={`att ${isImage(att.type) ? "img" : "doc"}`}
+                className={`att ${isImage(att) ? "img" : att.kind === "drive" ? "doc drive" : "doc"}`}
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.6 }}
@@ -165,8 +217,14 @@ export function Attachments({ taskId }: { taskId: string }) {
                 data-testid="attachment"
               >
                 <button className="att-open" onClick={() => open(att)} aria-label={`${att.name} を開く`}>
-                  {isImage(att.type) ? (
+                  {isImage(att) ? (
                     <motion.img layoutId={`att-${att.id}`} src={fileUrl(att.id)} alt={att.name} loading="lazy" />
+                  ) : att.kind === "drive" ? (
+                    <span className="att-doc" data-testid="drive-link">
+                      <DriveIcon size={22} />
+                      <span className="att-name">{att.name}</span>
+                      <span className="att-size">ドライブ</span>
+                    </span>
                   ) : (
                     <span className="att-doc">
                       <FileIcon width={22} height={22} />

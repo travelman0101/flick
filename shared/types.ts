@@ -9,6 +9,8 @@ export interface Task {
   status: Status;
   parentId: string | null;
   due: string | null; // YYYY-MM-DD
+  /** logical day (see src/day.ts) this task was picked for "today" */
+  today: string | null;
   position: number; // larger = higher in the list
   createdAt: number;
   updatedAt: number;
@@ -20,6 +22,9 @@ export interface Task {
 export interface Attachment {
   id: string;
   taskId: string;
+  /** "file": bytes stored by Flick; "drive": a link to a Google Drive file */
+  kind: "file" | "drive";
+  url: string | null;
   name: string;
   type: string;
   size: number;

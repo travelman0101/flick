@@ -15,7 +15,8 @@ export const test = base.extend<{ app: Page }>({
 export { expect };
 
 export const memo = (page: Page) => page.locator("#memo");
-export const cards = (page: Page) => page.getByTestId("task");
+// only the list on screen: a list animating out after a tab switch is inert
+export const cards = (page: Page) => page.locator('[data-testid^="list-"]:not([data-exiting]) [data-testid="task"]');
 export const card = (page: Page, title: string) => cards(page).filter({ hasText: title });
 
 export async function addMemo(page: Page, text: string) {
@@ -26,7 +27,26 @@ export async function addMemo(page: Page, text: string) {
 
 /** Drag a card horizontally like a finger flick. */
 export async function flick(page: Page, target: Locator, dx: number) {
-  const box = (await target.boundingBox())!;
+  // like a finger, wait until the card is back on screen (it re-enters after an in-place flick)
+  // measure the moving card itself, not its static shell
+  // and until it has stopped moving (cards slide and fade into place after undo or reorder)
+  const handle = target.locator(".card");
+  const width = page.viewportSize()!.width;
+  const seen: string[] = [];
+  await expect
+    .poll(
+      async () => {
+        const b = await handle.boundingBox();
+        const opaque = await target.evaluate((el) => getComputedStyle(el.closest("li") ?? el).opacity === "1");
+        seen.push(b && opaque && b.x >= 0 && b.x + b.width <= width + 1 ? `${Math.round(b.x)},${Math.round(b.y)}` : "");
+        // the same on-screen position three times in a row, fully visible
+        const [a, c, d] = seen.slice(-3);
+        return seen.length >= 3 && a !== "" && a === c && c === d;
+      },
+      { intervals: [100] },
+    )
+    .toBe(true);
+  const box = (await handle.boundingBox())!;
   const y = box.y + box.height / 2;
   const x = box.x + box.width / 2;
   await page.mouse.move(x, y);

@@ -234,7 +234,7 @@ html[data-auth="out"] .topbar { display: none; }
   top: calc(56px + var(--safe-top));
   z-index: 9;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1.15fr 1fr 1fr 1fr;
   margin: 14px 16px 12px;
   padding: 4px;
   border-radius: 16px;
@@ -245,11 +245,12 @@ html[data-auth="out"] .topbar { display: none; }
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  font-size: 14px;
+  gap: 5px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--ink-2);
   border-radius: 12px;
+  white-space: nowrap;
   transition: color 0.25s;
 }
 .tab.active { color: var(--ink); }
@@ -771,3 +772,103 @@ body:has(.login) { padding-bottom: 0; }
   box-shadow: 0 20px 60px rgba(30, 40, 90, 0.25);
   touch-action: none;
 }
+
+/* ---------- today ---------- */
+.tab-today .tab-label { color: inherit; }
+.tab-today.active .tab-count { background: linear-gradient(140deg, var(--accent), var(--accent-2)); }
+.chip.today { background: rgba(47, 107, 255, 0.1); color: var(--accent); }
+
+.today-head {
+  list-style: none;
+  padding: 4px 4px 6px;
+}
+.today-head-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+.today-date { font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.today-progress { font-size: 12px; font-weight: 600; color: var(--ink-3); }
+.today-bar { height: 6px; border-radius: 3px; background: rgba(20, 22, 28, 0.06); overflow: hidden; }
+.today-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--done), #5fd6ac);
+}
+.today-empty { display: grid; justify-items: center; gap: 14px; padding: 48px 0 12px; }
+
+.today-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 46px;
+  padding: 0 14px;
+  border-radius: 14px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink-2);
+  background: rgba(20, 22, 28, 0.04);
+  transition: background 0.3s var(--spring), color 0.3s;
+}
+.today-toggle.on { color: #fff; background: linear-gradient(140deg, var(--accent), var(--accent-2)); box-shadow: 0 8px 20px rgba(60, 90, 255, 0.25); }
+.today-toggle:disabled { opacity: 1; }
+
+/* ---------- morning pick ---------- */
+.plan { padding: 0 16px 110px; }
+.plan-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 4px 4px 12px; }
+.plan-head h2 { margin: 2px 0 0; font-size: 20px; font-weight: 800; letter-spacing: -0.01em; }
+.plan-date { margin: 0; font-size: 13px; font-weight: 700; color: var(--accent); }
+.plan-section h3 { margin: 14px 4px 8px; font-size: 12px; font-weight: 700; color: var(--ink-3); }
+.plan-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.plan-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border-radius: 16px;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 16px rgba(40, 52, 110, 0.06);
+  transition: background 0.25s var(--spring), border-color 0.25s, box-shadow 0.25s;
+}
+.plan-item.on {
+  background: rgba(240, 244, 255, 0.95);
+  border-color: rgba(47, 107, 255, 0.35);
+  box-shadow: 0 6px 20px rgba(47, 107, 255, 0.12);
+}
+.plan-item.locked { cursor: default; }
+.plan-check {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid rgba(20, 22, 28, 0.18);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  transition: background 0.2s, border-color 0.2s;
+}
+.plan-item.on .plan-check { background: var(--accent); border-color: var(--accent); }
+.plan-item.locked .plan-check { background: #ffb347; border-color: #ffb347; }
+.plan-title { flex: 1; min-width: 0; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
+.plan-reason { display: block; margin-top: 2px; font-size: 12px; font-weight: 600; color: var(--accent-2); }
+.plan-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  padding: 14px 16px calc(14px + var(--safe-bottom));
+  max-width: 640px;
+  margin: 0 auto;
+  background: linear-gradient(180deg, rgba(247, 248, 251, 0), rgba(247, 248, 251, 0.92) 40%);
+}
+.plan-bar .btn { height: 52px; font-size: 16px; overflow: hidden; }
+
+/* ---------- drive ---------- */
+.subs-head .btn + .btn { margin-left: 6px; }
+.subs-head h3 { margin-right: auto; }
+.btn.drive { background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(20, 22, 28, 0.08); }
+.att.drive { background: linear-gradient(160deg, #fff, #f3f7ff); }
+/* the Google Picker sits above our sheets */
+.picker-dialog-bg { z-index: 1000 !important; }
+.picker-dialog { z-index: 1001 !important; }

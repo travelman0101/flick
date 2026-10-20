@@ -20,6 +20,8 @@ const clearDraft = () => {
 };
 
 interface Props {
+  /** new memos join today when the Today view is open */
+  today: string | null;
   onAdded: () => void;
   onOrganize: (text: string) => void;
 }
@@ -28,14 +30,14 @@ interface Props {
  * The memo field lives in index.html so it is usable before React loads.
  * This component adopts it: it never remounts and never loses focus.
  */
-export function Composer({ onAdded, onOrganize }: Props) {
+export function Composer({ today, onAdded, onOrganize }: Props) {
   const memo = useRef(document.getElementById("memo") as HTMLTextAreaElement).current;
   const form = useRef(document.getElementById("composer") as HTMLFormElement).current;
   const slot = useRef(document.getElementById("composer-actions") as HTMLDivElement).current;
   const [text, setText] = useState(memo.value);
   const [pulse, setPulse] = useState(0);
-  const latest = useRef({ onAdded, onOrganize });
-  latest.current = { onAdded, onOrganize };
+  const latest = useRef({ today, onAdded, onOrganize });
+  latest.current = { today, onAdded, onOrganize };
 
   useEffect(() => {
     const resize = () => {
@@ -48,7 +50,7 @@ export function Composer({ onAdded, onOrganize }: Props) {
         .map((l) => l.trim())
         .filter(Boolean);
       if (!lines.length) return;
-      [...lines].reverse().forEach((l) => addTask(l));
+      [...lines].reverse().forEach((l) => addTask(l, { today: latest.current.today }));
       memo.value = "";
       clearDraft();
       setText("");

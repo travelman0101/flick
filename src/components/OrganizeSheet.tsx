@@ -10,13 +10,15 @@ import { Sheet, SkeletonRows, stagger } from "./Sheet";
 
 interface Props {
   text: string | null;
+  /** organized tasks join today when the Today view is open */
+  today: string | null;
   onClose: () => void;
   onAdded: () => void;
 }
 
 type Item = OrganizeResult["tasks"][number] & { on: boolean };
 
-export function OrganizeSheet({ text, onClose, onAdded }: Props) {
+export function OrganizeSheet({ text, today, onClose, onAdded }: Props) {
   const [items, setItems] = useState<Item[] | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -37,14 +39,14 @@ export function OrganizeSheet({ text, onClose, onAdded }: Props) {
   const chosen = items?.filter((i) => i.on && i.title.trim()) ?? [];
 
   const commit = () => {
-    [...chosen].reverse().forEach((i) => addTask(i.title, { due: i.due }));
+    [...chosen].reverse().forEach((i) => addTask(i.title, { due: i.due, today }));
     toast(`${chosen.length} 件追加しました`);
     onAdded();
     onClose();
   };
 
   const keepRaw = () => {
-    if (text) addTask(text.replace(/\s*\n\s*/g, " "));
+    if (text) addTask(text.replace(/\s*\n\s*/g, " "), { today });
     onAdded();
     onClose();
   };

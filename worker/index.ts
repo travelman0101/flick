@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { ai } from "./ai";
 import { auth, requireUser } from "./auth";
 import type { AppEnv } from "./env";
+import { drive } from "./drive";
 import { files, taskFiles } from "./files";
 import { tasks } from "./tasks";
 
@@ -25,6 +26,8 @@ app.route("/api/tasks", tasks);
 app.route("/api/tasks", taskFiles);
 app.use("/api/attachments/*", requireUser);
 app.route("/api/attachments", files);
+app.use("/api/drive/*", requireUser);
+app.route("/api/drive", drive);
 app.use("/api/ai/*", requireUser);
 app.route("/api/ai", ai);
 app.all("/api/*", (c) => c.json({ error: "not found" }, 404));

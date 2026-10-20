@@ -9,6 +9,7 @@ interface Row {
   status: Status;
   parent_id: string | null;
   due: string | null;
+  today: string | null;
   position: number;
   created_at: number;
   updated_at: number;
@@ -23,6 +24,7 @@ export const toTask = (r: Row): Task => ({
   status: r.status,
   parentId: r.parent_id,
   due: r.due,
+  today: r.today,
   position: r.position,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
@@ -47,6 +49,9 @@ function parseTask(id: string, b: any): Omit<Task, "id" | "attachmentCount"> | n
   if (!STATUSES.includes(b.status)) return null;
   if (b.parentId !== null && !(typeof b.parentId === "string" && ID.test(b.parentId))) return null;
   if (b.due !== null && !(typeof b.due === "string" && DATE.test(b.due))) return null;
+  // older clients do not send today
+  const today = b.today === undefined ? null : b.today;
+  if (today !== null && !(typeof today === "string" && DATE.test(today))) return null;
   if (!isNum(b.position) || !isNum(b.createdAt) || !isNum(b.updatedAt)) return null;
   if (b.archivedAt !== null && !isNum(b.archivedAt)) return null;
   return {
@@ -55,6 +60,7 @@ function parseTask(id: string, b: any): Omit<Task, "id" | "attachmentCount"> | n
     status: b.status,
     parentId: b.parentId,
     due: b.due,
+    today,
     position: b.position,
     createdAt: b.createdAt,
     updatedAt: b.updatedAt,
@@ -84,14 +90,14 @@ tasks.put("/:id", async (c) => {
   const userId = c.get("user").id;
   // Last write wins; a row owned by someone else is never touched.
   await c.env.DB.prepare(
-    `INSERT INTO tasks (id, user_id, title, note, status, parent_id, due, position, created_at, updated_at, archived_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO tasks (id, user_id, title, note, status, parent_id, due, today, position, created_at, updated_at, archived_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        title = excluded.title, note = excluded.note, status = excluded.status, parent_id = excluded.parent_id,
-       due = excluded.due, position = excluded.position, updated_at = excluded.updated_at, archived_at = excluded.archived_at
+       due = excluded.due, today = excluded.today, position = excluded.position, updated_at = excluded.updated_at, archived_at = excluded.archived_at
      WHERE tasks.user_id = excluded.user_id AND tasks.updated_at < excluded.updated_at`,
   )
-    .bind(id, userId, t.title, t.note, t.status, t.parentId, t.due, t.position, t.createdAt, t.updatedAt, t.archivedAt)
+    .bind(id, userId, t.title, t.note, t.status, t.parentId, t.due, t.today, t.position, t.createdAt, t.updatedAt, t.archivedAt)
     .run();
   const row = await c.env.DB.prepare(`${SELECT} WHERE t.id = ? AND t.user_id = ?`).bind(id, userId).first<Row>();
   if (!row) return c.json({ error: "not found" }, 404);

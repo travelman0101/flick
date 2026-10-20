@@ -57,13 +57,19 @@ test("task detail: edit status, AI subtasks, archive", async ({ app }) => {
   await expect(card(app, "旅行の準備")).toHaveCount(0);
 });
 
-test("today suggestions can start a task", async ({ app }) => {
+test("AI recommendation pre-selects tasks in the morning pick", async ({ app }) => {
+  await app.getByTestId("tab-todo").click();
   await addMemo(app, "メールを返す");
   await app.getByTestId("today").click();
-  const sheet = app.getByTestId("today-sheet");
-  await expect(sheet.getByTestId("today-item")).toHaveCount(1);
-  await sheet.getByRole("button", { name: "始める" }).click();
-  await expect(app.getByTestId("count-doing")).toHaveText("1");
+  const plan = app.getByTestId("plan");
+  await expect(plan.getByTestId("plan-item")).toHaveCount(1);
+  await expect(plan.getByTestId("plan-item")).toHaveAttribute("aria-pressed", "false");
+  await plan.getByTestId("plan-ai").click();
+  await expect(plan.getByTestId("plan-item")).toHaveAttribute("aria-pressed", "true");
+  await expect(plan.getByTestId("plan-item")).toContainText("早めに片づけたい");
+  await plan.getByTestId("plan-start").click();
+  await expect(card(app, "メールを返す")).toBeVisible();
+  await expect(app.getByTestId("count-today")).toHaveText("1");
 });
 
 test("logout returns to the login screen", async ({ app }) => {

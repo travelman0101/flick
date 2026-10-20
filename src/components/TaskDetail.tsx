@@ -3,14 +3,36 @@ import { useEffect, useState } from "react";
 import { STATUSES } from "../../shared/types";
 import { api, HttpError } from "../api";
 import { STATUS_LABEL } from "../format";
-import { addTask, archiveTask, childrenOf, restoreTask, updateTask, useStore, topPosition } from "../store";
+import {
+  addTask,
+  archiveTask,
+  childrenOf,
+  isDueNow,
+  isPicked,
+  restoreTask,
+  setToday,
+  topPosition,
+  updateTask,
+  useStore,
+} from "../store";
 import { toast } from "../toast";
 import { Attachments } from "./Attachments";
-import { Archive, Calendar, Check, Close, Plus, Sparkle } from "./icons";
+import { Archive, Calendar, Check, Close, Plus, Sparkle, Sun } from "./icons";
 import { NoteField } from "./NoteField";
 import { Sheet, SkeletonRows, stagger } from "./Sheet";
 
-export function TaskDetail({ id, onClose }: { id: string | null; onClose: () => void }) {
+export function TaskDetail({
+  id,
+  day,
+  autoDrive = false,
+  onClose,
+}: {
+  id: string | null;
+  day: string;
+  /** open the Drive picker right away (back from connecting Drive) */
+  autoDrive?: boolean;
+  onClose: () => void;
+}) {
   const tasks = useStore((s) => s.tasks);
   const task = id ? tasks[id] : undefined;
   const [title, setTitle] = useState("");
@@ -70,6 +92,24 @@ export function TaskDetail({ id, onClose }: { id: string | null; onClose: () => 
               }
             }}
           />
+
+          {task.parentId === null && (
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              className={`today-toggle ${isPicked(task, day) || isDueNow(task, day) ? "on" : ""}`}
+              aria-pressed={isPicked(task, day) || isDueNow(task, day)}
+              disabled={isDueNow(task, day) && !isPicked(task, day)}
+              onClick={() => setToday(task.id, !isPicked(task, day), day)}
+              data-testid="today-toggle"
+            >
+              <Sun width={18} height={18} />
+              {isDueNow(task, day) && !isPicked(task, day)
+                ? "期限が今日までなので今日に入っています"
+                : isPicked(task, day)
+                  ? "今日やる"
+                  : "今日やるに追加"}
+            </motion.button>
+          )}
 
           <div className="seg" role="radiogroup" aria-label="ステータス">
             {STATUSES.map((s) => (
@@ -185,7 +225,7 @@ export function TaskDetail({ id, onClose }: { id: string | null; onClose: () => 
             </form>
           </section>
 
-          <Attachments taskId={task.id} />
+          <Attachments taskId={task.id} autoDrive={autoDrive} />
 
           <motion.button
             whileTap={{ scale: 0.97 }}

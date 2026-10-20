@@ -11,10 +11,15 @@ interface Props {
   task: Task;
   subtasks: { done: number; total: number };
   onOpen: (id: string) => void;
-  onFlick: (id: string, dir: 1 | -1) => void;
+  /** "stay": the task is still in this list afterwards, so the card slides back in */
+  onFlick: (id: string, dir: 1 | -1) => "leave" | "stay";
+  /** label for a left flick on a todo (default: archive) */
+  leftLabel?: string;
+  /** small "今日" chip in the status columns */
+  pickedToday?: boolean;
 }
 
-export function TaskCard({ task, subtasks, onOpen, onFlick }: Props) {
+export function TaskCard({ task, subtasks, onOpen, onFlick, leftLabel, pickedToday }: Props) {
   const x = useMotionValue(0);
   const [armed, setArmed] = useState<0 | 1 | -1>(0);
   const busy = useRef(false);
@@ -27,7 +32,8 @@ export function TaskCard({ task, subtasks, onOpen, onFlick }: Props) {
   const scale = useTransform(x, [-THRESHOLD, 0, THRESHOLD], [0.98, 1, 0.98]);
 
   const nextLabel = task.status === "todo" ? STATUS_LABEL.doing : STATUS_LABEL.done;
-  const prevLabel = task.status === "todo" ? "アーカイブ" : task.status === "doing" ? STATUS_LABEL.todo : STATUS_LABEL.doing;
+  const archives = task.status === "todo" && !leftLabel;
+  const prevLabel = task.status === "todo" ? (leftLabel ?? "アーカイブ") : task.status === "doing" ? STATUS_LABEL.todo : STATUS_LABEL.doing;
 
   function onDrag(_: unknown, info: PanInfo) {
     const o = info.offset.x;
@@ -44,14 +50,22 @@ export function TaskCard({ task, subtasks, onOpen, onFlick }: Props) {
     let dir: 0 | 1 | -1 = o > THRESHOLD || (v > VELOCITY && o > 24) ? 1 : o < -THRESHOLD || (v < -VELOCITY && o < -24) ? -1 : 0;
     if (dir === 1 && !canNext) dir = 0;
     setArmed(0);
-    if (!dir || busy.current) {
+    if (!dir) {
       animate(x, 0, { type: "spring", stiffness: 520, damping: 34 });
       return;
     }
-    busy.current = true;
     haptic(14);
+    // Commit first: the fly-out is only visual, and it gets cut short if the list
+    // changes underneath (e.g. a tab switch), which must not lose the flick.
+    const stays = onFlick(task.id, dir) === "stay";
+    busy.current = true;
     await animate(x, dir * (window.innerWidth + 80), { type: "spring", stiffness: 260, damping: 32, velocity: v });
-    onFlick(task.id, dir);
+    busy.current = false;
+    if (stays) {
+      // re-enter from the other side with the new status
+      x.jump(-dir * 140);
+      animate(x, 0, { type: "spring", stiffness: 380, damping: 30 });
+    }
   }
 
   const due = task.due ? dueLabel(task.due) : null;
@@ -66,10 +80,10 @@ export function TaskCard({ task, subtasks, onOpen, onFlick }: Props) {
           {nextLabel}
         </motion.span>
       </motion.div>
-      <motion.div className={`swipe-bg left ${task.status === "todo" ? "archive" : ""}`} style={{ opacity: leftOpacity }} aria-hidden>
+      <motion.div className={`swipe-bg left ${archives ? "archive" : ""}`} style={{ opacity: leftOpacity }} aria-hidden>
         <motion.span className="swipe-hint" animate={{ scale: armed === -1 ? 1.15 : 0.9 }}>
           {prevLabel}
-          {task.status === "todo" ? <Archive /> : <ArrowLeft />}
+          {archives ? <Archive /> : <ArrowLeft />}
         </motion.span>
       </motion.div>
 
@@ -101,8 +115,13 @@ export function TaskCard({ task, subtasks, onOpen, onFlick }: Props) {
         <StatusDot status={task.status} />
         <div className="card-body">
           <div className={`card-title ${task.status === "done" ? "is-done" : ""}`}>{task.title}</div>
-          {(due || subtasks.total > 0 || hasNote || files > 0) && (
+          {(pickedToday || due || subtasks.total > 0 || hasNote || files > 0) && (
             <div className="card-meta">
+              {pickedToday && (
+                <span className="chip today" data-testid="picked-today">
+                  今日
+                </span>
+              )}
               {due && <span className={`chip due ${due.tone}`}>{due.text}</span>}
               {subtasks.total > 0 && (
                 <span className="chip">

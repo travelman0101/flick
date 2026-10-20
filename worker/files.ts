@@ -6,6 +6,8 @@ import { ID, ownedTask } from "./tasks";
 interface Row {
   id: string;
   task_id: string;
+  kind: "file" | "drive";
+  url: string | null;
   name: string;
   type: string;
   size: number;
@@ -15,6 +17,8 @@ interface Row {
 const toAttachment = (r: Row): Attachment => ({
   id: r.id,
   taskId: r.task_id,
+  kind: r.kind,
+  url: r.url,
   name: r.name,
   type: r.type,
   size: r.size,
@@ -73,6 +77,8 @@ taskFiles.post("/:id/attachments", async (c) => {
   const att: Attachment = {
     id: crypto.randomUUID(),
     taskId,
+    kind: "file",
+    url: null,
     name: cleanName(c.req.header("x-file-name")),
     type: TYPE.test(rawType) ? rawType : "application/octet-stream",
     size: body.byteLength,
@@ -88,6 +94,43 @@ taskFiles.post("/:id/attachments", async (c) => {
   return c.json({ attachment: att });
 });
 
+/** Only links that open Google Drive or Docs. */
+function driveUrl(raw: unknown) {
+  try {
+    const u = new URL(String(raw));
+    return u.protocol === "https:" && (u.hostname === "drive.google.com" || u.hostname === "docs.google.com") ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Attach a Google Drive file as a link: no bytes stored, any size. */
+taskFiles.post("/:id/links", async (c) => {
+  const userId = c.get("user").id;
+  const taskId = c.req.param("id");
+  if (!ID.test(taskId) || !(await ownedTask(c.env.DB, taskId, userId))) return c.json({ error: "not found" }, 404);
+  const body = await c.req.json().catch(() => ({}));
+  const url = driveUrl(body.url);
+  if (!url) return c.json({ error: "invalid link" }, 400);
+  const rawType = String(body.mimeType ?? "").toLowerCase();
+  const att: Attachment = {
+    id: crypto.randomUUID(),
+    taskId,
+    kind: "drive",
+    url,
+    name: cleanName(encodeURIComponent(String(body.name ?? ""))),
+    type: TYPE.test(rawType) ? rawType : "application/octet-stream",
+    size: 0,
+    createdAt: Date.now(),
+  };
+  await c.env.DB.prepare(
+    "INSERT INTO attachments (id, user_id, task_id, name, type, size, created_at, kind, url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  )
+    .bind(att.id, userId, att.taskId, att.name, att.type, att.size, att.createdAt, att.kind, att.url)
+    .run();
+  return c.json({ attachment: att });
+});
+
 /** /api/attachments/:id */
 export const files = new Hono<AppEnv>();
 
@@ -97,6 +140,7 @@ const findOwned = (c: { env: AppEnv["Bindings"] }, id: string, userId: string) =
 files.get("/:id", async (c) => {
   const row = await findOwned(c, c.req.param("id"), c.get("user").id);
   if (!row) return c.json({ error: "not found" }, 404);
+  if (row.kind === "drive" && row.url) return c.redirect(row.url, 302);
   const bytes = await c.env.FILES.get(row.id, "arrayBuffer");
   if (!bytes) return c.json({ error: "not found" }, 404);
 
@@ -117,6 +161,6 @@ files.delete("/:id", async (c) => {
   const row = await findOwned(c, c.req.param("id"), c.get("user").id);
   if (!row) return c.json({ error: "not found" }, 404);
   await c.env.DB.prepare("DELETE FROM attachments WHERE id = ?").bind(row.id).run();
-  await c.env.FILES.delete(row.id);
+  if (row.kind === "file") await c.env.FILES.delete(row.id);
   return c.json({ ok: true });
 });

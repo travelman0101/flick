@@ -28,6 +28,7 @@ test("a short drag snaps back without changing status", async ({ app }) => {
 
 test("flick left on a todo archives it and undo restores it", async ({ app }) => {
   await addMemo(app, "いらないタスク");
+  await app.getByTestId("tab-todo").click();
   await flick(app, card(app, "いらないタスク"), -220);
   await expect(card(app, "いらないタスク")).toHaveCount(0);
   const toast = app.getByTestId("toast");

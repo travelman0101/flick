@@ -31,6 +31,10 @@ export const api = {
       body: file,
       headers: { "content-type": file.type || "application/octet-stream", "x-file-name": encodeURIComponent(name) },
     }),
+  linkDrive: (taskId: string, file: { name: string; url: string; mimeType: string }) =>
+    request<{ attachment: Attachment }>(`/api/tasks/${taskId}/links`, { method: "POST", body: JSON.stringify(file) }),
+  driveToken: () => request<{ accessToken: string; apiKey: string; appId: string }>("/api/drive/token"),
+  driveDisconnect: () => request("/api/drive/disconnect", { method: "POST" }),
   deleteAttachment: (id: string) => request(`/api/attachments/${id}`, { method: "DELETE" }),
   today: () => request<TodayResult>("/api/ai/today", { method: "POST", body: JSON.stringify({ today: today() }) }),
 };
