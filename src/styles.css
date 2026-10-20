@@ -872,3 +872,26 @@ body:has(.login) { padding-bottom: 0; }
 /* the Google Picker sits above our sheets */
 .picker-dialog-bg { z-index: 1000 !important; }
 .picker-dialog { z-index: 1001 !important; }
+.note-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  text-align: left;
+  color: var(--ink-2);
+}
+.note-label { font-size: 14px; font-weight: 700; color: var(--ink); flex: none; }
+.note-peek {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.note-count { margin-left: auto; font-size: 11px; color: var(--ink-3); flex: none; }
+.note-peek + .note-count { margin-left: 0; }
+.note-chevron { flex: none; font-size: 12px; color: var(--ink-3); display: inline-block; }
+.note.open .note-input { padding-top: 0; }

@@ -10,6 +10,7 @@ test("a note is saved as you type and survives a reload", async ({ app }) => {
   await addMemo(app, "台湾遠征の準備");
   await card(app, "台湾遠征の準備").click();
   const sheet = app.getByTestId("detail-sheet");
+  await sheet.getByTestId("note-toggle").click();
   await sheet.getByTestId("note").fill("集合 7:00 中部国際空港\nパスポート忘れない");
   await sheet.getByRole("button", { name: "閉じる" }).click();
   await expect(card(app, "台湾遠征の準備").getByTestId("has-note")).toBeVisible();
@@ -19,6 +20,10 @@ test("a note is saved as you type and survives a reload", async ({ app }) => {
     .toBe("集合 7:00 中部国際空港\nパスポート忘れない");
   await app.reload();
   await card(app, "台湾遠征の準備").click();
+  // folded by default: only the heading and the first line
+  await expect(app.getByTestId("detail-sheet").getByTestId("note")).toHaveCount(0);
+  await expect(app.getByTestId("detail-sheet").getByTestId("note-peek")).toHaveText("集合 7:00 中部国際空港");
+  await app.getByTestId("detail-sheet").getByTestId("note-toggle").click();
   await expect(app.getByTestId("detail-sheet").getByTestId("note")).toHaveValue("集合 7:00 中部国際空港\nパスポート忘れない");
 });
 
@@ -65,4 +70,20 @@ test("attach a photo and a file, view, then delete with two taps", async ({ app 
   // survives a reload: the server agrees
   await app.reload();
   await expect(card(app, "資料をまとめる").getByTestId("has-files")).toHaveText("1");
+});
+
+test("a long note stays folded so subtasks are visible right away", async ({ app }) => {
+  await addMemo(app, "長いメモのタスク");
+  await card(app, "長いメモのタスク").click();
+  const sheet = app.getByTestId("detail-sheet");
+  await sheet.getByTestId("note-toggle").click();
+  await sheet.getByTestId("note").fill(Array.from({ length: 40 }, (_, i) => `${i + 1} 行目のメモ`).join("\n"));
+  await sheet.getByPlaceholder("サブタスク").fill("最初の一歩");
+  await sheet.getByPlaceholder("サブタスク").press("Enter");
+  await sheet.getByRole("button", { name: "閉じる" }).click();
+
+  await card(app, "長いメモのタスク").click();
+  await expect(sheet.getByTestId("note-toggle")).toHaveAttribute("aria-expanded", "false");
+  await expect(sheet.getByTestId("note-toggle")).toContainText("字");
+  await expect(sheet.getByTestId("subtask").first()).toBeInViewport();
 });
